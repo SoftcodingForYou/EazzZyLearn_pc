@@ -1,0 +1,9 @@
+# Install all dependencies with "pip install -r ./requirements.txt"
+spectrum
+keyboard
+pyserial
+sounddevice
+soundfile
+scipy
+matplotlib
+numpy
