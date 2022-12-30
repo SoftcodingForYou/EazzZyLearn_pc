@@ -123,6 +123,12 @@ class Receiver:
             sign_bit = s_bin
         elif s_bin > 8388607 and s_bin <= 2*8388607:
             sign_bit = -2*8388607 + s_bin - 1
+        else:
+            # This should not occur, but several users have had this issue:
+            # voltage = (4.5sign_bit)/(self.pga*8388607.0)
+            #     ^^^
+            # UnboundLocalError: cannot access local variable 'sign_bit' where it is not associated with a value
+            return 0
         
         voltage = (4.5*sign_bit)/(self.pga*8388607.0)
         voltage = voltage * 1000000 # Convert to microvolts
