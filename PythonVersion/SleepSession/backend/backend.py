@@ -64,7 +64,7 @@ class Backend(Receiver):
             key = keyboard.read_key()
             self.define_stimulation_state(key, self.HndlDt.stim_path,
                 current_time)
-        elif any(keyboard.is_pressed(key) for key in map(str, np.arange(1,9))):
+        elif any(keyboard.is_pressed(key) for key in map(str, np.arange(1,3))):
             number = keyboard.read_key()
             self.SgPrc.switch_channel(number, self.HndlDt.stim_path, current_time)
         
