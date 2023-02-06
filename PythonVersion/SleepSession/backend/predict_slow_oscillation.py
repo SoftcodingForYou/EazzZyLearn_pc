@@ -33,7 +33,7 @@ class PredictSlowOscillation:
         # signal amplitude.
         # =================================================================
         v_envelope                  = np.absolute(scipy.signal.hilbert(threshold_array))
-        adaptive_threshold          = - np.mean(threshold_array) - 1.1 * np.std(v_envelope) 
+        adaptive_threshold          = - np.mean(v_envelope) - 1.1 * np.std(v_envelope) 
 
         return adaptive_threshold
 
