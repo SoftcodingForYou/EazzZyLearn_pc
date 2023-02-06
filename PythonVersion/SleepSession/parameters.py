@@ -12,6 +12,11 @@ SUBJECT_INFO    = {
     'cueinterval':  '1',                                # float (minutes)
     }
 
+HELMENT_ID      = '7&2F45FB97&0&7C9EBDABB922_C00000000'   # There is currently
+                                                        # no elegant way for
+                                                        # searching for the 
+                                                        # device dynamically
+
 
 # Prepare channel information
 # -------------------------------------------------------------------------
