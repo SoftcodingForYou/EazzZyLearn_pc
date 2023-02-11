@@ -4,9 +4,9 @@
 OUTPUT_DIR      = './EazzZyLearn_output'
 
 SUBJECT_INFO    = {
-    'name':         'Generic',                          # string (freely choses)
-    'age':          'Generic',                          # scalar (years)
-    'sex':          'Generic',                          # Male or Female
+    'name':         'David_directboard',                          # string (freely choses)
+    'age':          '32',                          # scalar (years)
+    'sex':          'Male',                          # Male or Female
     'chosencue':    'Pixabay_service_bell_ring_14610_volred',   # Sound to present during sleep
     'background':   'Meditative_Mind_P1F9MiPr2Vs_short',        # Background sound to avoid silent intervals
     'cueinterval':  '1',                                # float (minutes)
@@ -93,6 +93,8 @@ REPONSE_BUFFER_LENGTH   = int(SAMPLERATE * 3)
 # Threshold parameters for slow oscillatory downstate validation
 # -------------------------------------------------------------------------
 DEFAULT_THRESHOLD           = -75 # (uV)
+SD_MULTIPLICATOR            = 1.1   # Float, How many SDs the downstate has 
+                                    # to be from mean
 NON_PHYSIOLOGICAL_THRESHOLD = -300 # (uV) Below this amplitude, we do not 
                                    # consider the signal luctuation to be 
                                    # physiological

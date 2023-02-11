@@ -191,7 +191,7 @@ class Receiver:
             self.ser.open()
 
         print('Board is booting up ...')
-        time.sleep(5)
+        time.sleep(10)
         self.ser.write(bytes(str(self.desired_con), 'utf-8'))
         time.sleep(5)
 

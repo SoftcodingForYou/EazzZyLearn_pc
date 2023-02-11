@@ -23,6 +23,7 @@ class PredictSlowOscillation:
         
         self.default_threshold      = p.DEFAULT_THRESHOLD
         self.artifact_threshold     = p.NON_PHYSIOLOGICAL_THRESHOLD
+        self.sd_multi               = p.SD_MULTIPLICATOR
 
         self.throw_multi            = p.THROW_MULTIPLICATION
 
@@ -33,7 +34,7 @@ class PredictSlowOscillation:
         # signal amplitude.
         # =================================================================
         v_envelope                  = np.absolute(scipy.signal.hilbert(threshold_array))
-        adaptive_threshold          = - np.mean(v_envelope) - 1.1 * np.std(v_envelope) 
+        adaptive_threshold          = - np.mean(v_envelope) - self.sd_multi * np.std(v_envelope) 
 
         return adaptive_threshold
 
