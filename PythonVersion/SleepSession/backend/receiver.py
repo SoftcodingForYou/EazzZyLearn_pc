@@ -139,17 +139,31 @@ class Receiver:
 
     def get_sample(self):
         # Get eeg samples from the serial connection
-        raw_message = str(self.ser.readline())
 
-        idx_start           = raw_message.find("{")
-        idx_stop            = raw_message.find("}")
-        raw_message         = raw_message[idx_start:idx_stop+1]
-        
-        # Handle JSON samples and add to signal buffer ----------------
-        eeg_data_line       = json.loads(raw_message)
+        while True:
+            raw_message     = str(self.ser.readline())
+
+            # Strip all non-json format characters
+            raw_message     = raw_message[2:]
+            raw_message     = raw_message.replace("\'", "")
+            raw_message     = raw_message.replace("\\r", "")
+            raw_message     = raw_message.replace("\\n", "")
+
+            # Handle JSON samples and add to signal buffer ----------------
+            try:
+                # 1) In general, serial messages have to be expected to be 
+                # incomplete and 2) Touching board components can lead to 
+                # message corruption. We prevent code breakage when 
+                # corrupted messages come in 
+                eeg_data_line   = json.loads(raw_message)
+                buffer_line     = [eeg_data_line["c1"],eeg_data_line["c2"]]
+                break
+            except json.JSONDecodeError: # NEEDS COMPLETION IN CASE OF KEY ERROR c1 and c2
+                # Take advantage and reset message queue
+                self.ser.read(self.ser.inWaiting())
+                continue
 
         # Each channel carries self.s_per_buffer amounts of samples
-        buffer_line = [eeg_data_line['c1'],eeg_data_line['c2']]
         if self.desired_con == 2:
             eeg_data        = np.array([buffer_line])
             eeg_data        = np.transpose(eeg_data)
@@ -202,6 +216,8 @@ class Receiver:
                 print('Fully started')
                 board_booting = False
 
+        # Eliminates the queue of incoming messages
+        self.ser.read(self.ser.inWaiting())
 
         # This functions fills the buffer in self.buffer
         # that later can be accesed to perfom the real time analysis
