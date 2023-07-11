@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import scipy.signal
 import parameters as p
 import numpy as np
 from threading import Thread
@@ -22,22 +23,18 @@ class PredictSlowOscillation:
         
         self.default_threshold      = p.DEFAULT_THRESHOLD
         self.artifact_threshold     = p.NON_PHYSIOLOGICAL_THRESHOLD
+        self.sd_multi               = p.SD_MULTIPLICATOR
 
         self.throw_multi            = p.THROW_MULTIPLICATION
 
 
     def set_threshold(self, threshold_array):
         # =================================================================
-        # This method is looking for minimum throw amplitudes in a certain 
-        # time window occuring BEFORE the onset of a potential SO. This 
-        # assures that we avoid upshifts in sleep stages by repeated
-        # stimulations.
+        # This method is setting threshold values based on the overall
+        # signal amplitude.
         # =================================================================
-        min_amplitude = np.min(threshold_array)
-        if min_amplitude < self.default_threshold:
-            adaptive_threshold = min_amplitude
-        else:
-            adaptive_threshold = self.default_threshold
+        v_envelope                  = np.absolute(scipy.signal.hilbert(threshold_array))
+        adaptive_threshold          = - np.mean(v_envelope) - self.sd_multi * np.std(v_envelope) 
 
         return adaptive_threshold
 
@@ -163,12 +160,8 @@ class PredictSlowOscillation:
         if idx_p2n is None:
             return
 
-        # Adapt index to uncut_delta array length
-        from_end = -delta.shape[0] + idx_p2n
-
         # Adaptive threshold
-        v_threshold = uncut_delta[from_end-length_threshold:from_end]
-        threshold   = self.set_threshold(v_threshold)
+        threshold   = self.set_threshold(uncut_delta)
         
         # Validate slow oscillation downstate
         valid_downstate = self.downstate_validation(on_delta, threshold)

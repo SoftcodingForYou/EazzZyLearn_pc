@@ -1,12 +1,12 @@
-from backend.receiver import Receiver
-from backend.handle_data import HandleData
-from backend.cueing import Cueing
-from backend.sleep_wake_state import SleepWakeState
-from backend.signal_processing import SignalProcessing
-from backend.predict_slow_oscillation import PredictSlowOscillation
+from backend.receiver                   import Receiver
+from backend.handle_data                import HandleData
+from backend.cueing                     import Cueing
+from backend.sleep_wake_state           import SleepWakeState
+from backend.signal_processing          import SignalProcessing
+from backend.predict_slow_oscillation   import PredictSlowOscillation
+from threading                          import Thread
+import numpy                            as np
 import keyboard
-from threading import Thread
-import numpy as np
 
 
 # Inherance of Receiver class is key here so that we call 
@@ -64,7 +64,7 @@ class Backend(Receiver):
             key = keyboard.read_key()
             self.define_stimulation_state(key, self.HndlDt.stim_path,
                 current_time)
-        elif any(keyboard.is_pressed(key) for key in map(str, np.arange(1,9))):
+        elif any(keyboard.is_pressed(key) for key in map(str, np.arange(1,self.num_channels+1))):
             number = keyboard.read_key()
             self.SgPrc.switch_channel(number, self.HndlDt.stim_path, current_time)
         
@@ -135,7 +135,7 @@ if __name__ == '__main__':
         'age': 26,
         'sex': 'Male',
         'head_measure': 59,
-        'sample_rate': 250
+        'sample_rate': 200
     }
     output_dir = ''  # current folder
 

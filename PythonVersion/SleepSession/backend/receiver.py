@@ -20,6 +20,7 @@ class Receiver:
         # =================================================================
 
         # Set streaming parameters
+        self.board_id       = p.HELMENT_ID
         self.sample_rate    = p.SAMPLERATE
         self.pga            = p.PGA
         self.baud_rate      = p.BAUDRATE
@@ -59,11 +60,10 @@ class Receiver:
         
         for iPort in range(len(myports)):
             print(list(myports[iPort]))
-            if '7&74D8485&0&000000000000_00000006' in list(myports[iPort])[2]:
-                continue
-                # # Bluetooth device query
-                # self.av_ports["BT"] = list(myports[iPort])[0]
-                # print('Found Helment connected via Bluetooth')
+            if self.board_id in list(myports[iPort])[2]:
+                # Bluetooth device query
+                self.av_ports["BT"] = list(myports[iPort])[0]
+                print('Found Helment connected via Bluetooth')
             elif 'Silicon Labs CP210x USB to UART Bridge' in list(myports[iPort])[1]:
                 # USB device query
                 self.av_ports["USB"] = list(myports[iPort])[0]
@@ -93,9 +93,11 @@ class Receiver:
         self.ser.baudrate   = self.baud_rate
         self.ser.timeout    = self.time_out
         if self.av_ports["USB"] != None:
+            self.desired_con= 2
             self.ser.port   = self.av_ports["USB"]
             str_comtype = 'Communication via USB'
         elif self.av_ports["BT"] != None:
+            self.desired_con= 3
             self.ser.port   = self.av_ports["BT"]
             str_comtype = 'Communication via Bluetooth'
         print(str_comtype + ' established\n')
@@ -137,23 +139,44 @@ class Receiver:
 
     def get_sample(self):
         # Get eeg samples from the serial connection
-        raw_message = str(self.ser.readline())
 
-        idx_start           = raw_message.find("{")
-        idx_stop            = raw_message.find("}")
-        raw_message         = raw_message[idx_start:idx_stop+1]
-        
-        # Handle JSON samples and add to signal buffer ----------------
-        eeg_data_line       = json.loads(raw_message)
+        while True:
+            raw_message     = str(self.ser.readline())
+
+            # Strip all non-json format characters
+            raw_message     = raw_message[2:]
+            raw_message     = raw_message.replace("\'", "")
+            raw_message     = raw_message.replace("\\r", "")
+            raw_message     = raw_message.replace("\\n", "")
+
+            # Handle JSON samples and add to signal buffer ----------------
+            try:
+                # 1) In general, serial messages have to be expected to be 
+                # incomplete and 2) Touching board components can lead to 
+                # message corruption. We prevent code breakage when 
+                # corrupted messages come in 
+                eeg_data_line   = json.loads(raw_message)
+                buffer_line     = [eeg_data_line["c1"],eeg_data_line["c2"]]
+                break
+            except json.JSONDecodeError: # NEEDS COMPLETION IN CASE OF KEY ERROR c1 and c2
+                # Take advantage and reset message queue
+                self.ser.read(self.ser.inWaiting())
+                continue
 
         # Each channel carries self.s_per_buffer amounts of samples
-        buffer_line = [eeg_data_line['c1'],eeg_data_line['c2']]
-        eeg_data        = np.array([buffer_line])
-        eeg_data        = np.transpose(eeg_data)
+        if self.desired_con == 2:
+            eeg_data        = np.array([buffer_line])
+            eeg_data        = np.transpose(eeg_data)
+        elif self.desired_con == 3:
+            eeg_data        = np.array(buffer_line) # Avoid creating 3D matrix
 
         # Convert binary to voltage values
+        # Temporarily convert into vector to avoid double for loop
+        dim_sizes           = eeg_data.shape
+        eeg_data            = np.reshape(eeg_data, eeg_data.size)
         for iBin in range(eeg_data.size):
             eeg_data[iBin] = self.bin_to_voltage(eeg_data[iBin])
+        eeg_data            = np.reshape(eeg_data, dim_sizes) # Back to original
 
         # # Flip signals because OpenBCI streams data P - N pins which 
         # # corresponds to Reference - Electrode
@@ -168,16 +191,12 @@ class Receiver:
 
     def fill_buffer(self):
 
-        desired_con = 2 # HARD-CODED: Force USB mode
-
-        if desired_con == 2: # Bluetooth
+        if self.desired_con == 2: # Bluetooth
             self.ser.port        = self.av_ports["USB"]
             s_per_buffer    = 1
-            print('USB')
-        elif desired_con == 3: # USB
+        elif self.desired_con == 3: # USB
             self.ser.port        = self.av_ports["BT"]
             s_per_buffer    = 10
-            print('BT')
 
         # Open communication ----------------------------------------------
         if self.ser.port == None:
@@ -186,8 +205,9 @@ class Receiver:
             self.ser.open()
 
         print('Board is booting up ...')
+        time.sleep(10)
+        self.ser.write(bytes(str(self.desired_con), 'utf-8'))
         time.sleep(5)
-        self.ser.write(bytes(str(desired_con), 'utf-8'))
 
         board_booting = True
         while board_booting and not keyboard.is_pressed('c'):
@@ -196,34 +216,40 @@ class Receiver:
                 print('Fully started')
                 board_booting = False
 
+        # Eliminates the queue of incoming messages
+        self.ser.read(self.ser.inWaiting())
 
         # This functions fills the buffer in self.buffer
         # that later can be accesed to perfom the real time analysis
         while True:
             # Get samples
-            sample      = self.get_sample()
-            time_stamp  = self.get_time_stamp()
+            samples     = self.get_sample()
 
-            # Transpose vector
-            if sample.shape[0] == 1:
-                sample = np.transpose(sample)
+            for iS in range(s_per_buffer):
+                sample = samples[:, iS]
+                sample = np.expand_dims(sample, 1)
+                time_stamp  = self.get_time_stamp()
 
-            # Concatenate vector
-            update_buffer = np.concatenate((self.buffer, sample), axis=1)
+                # Transpose vector
+                if sample.shape[0] == 1:
+                    sample = np.transpose(sample)
 
-            # save to new buffer
-            self.buffer = update_buffer[:, 1:]
+                # Concatenate vector
+                update_buffer = np.concatenate((self.buffer, sample), axis=1)
 
-            # Save time_stamp
-            self.time_stamps = np.append(self.time_stamps, time_stamp)
-            self.time_stamps = self.time_stamps[1:]
+                # save to new buffer
+                self.buffer = update_buffer[:, 1:]
 
-            # real_time_algorithm
-            self.real_time_algorithm(self.buffer, self.time_stamps)
+                # Save time_stamp
+                self.time_stamps = np.append(self.time_stamps, time_stamp)
+                self.time_stamps = self.time_stamps[1:]
 
-            # Stop thread
-            if self.stop:
-                return
+                # real_time_algorithm
+                self.real_time_algorithm(self.buffer, self.time_stamps)
+
+                # Stop thread
+                if self.stop:
+                    return
 
 
     @abstractclassmethod
