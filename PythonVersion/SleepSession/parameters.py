@@ -4,31 +4,32 @@
 OUTPUT_DIR      = './EazzZyLearn_output'
 
 SUBJECT_INFO    = {
-    'name':         'David_directboard',                          # string (freely choses)
-    'age':          '32',                          # scalar (years)
-    'sex':          'Male',                          # Male or Female
-    'chosencue':    'Pixabay_service_bell_ring_14610_volred',   # Sound to present during sleep
+    'name':         'Generic',                          # string (freely choses)
+    'age':          '0',                          # scalar (years)
+    'sex':          'Generic',                          # Male or Female
+    'chosencue':    'heart',   # Sound to present during sleep
     'background':   'Meditative_Mind_P1F9MiPr2Vs_short',        # Background sound to avoid silent intervals
     'cueinterval':  '1',                                # float (minutes)
     }
-
-HELMENT_ID      = '7&2F45FB97&0&7C9EBDABB922_C00000000'   # There is currently
-                                                        # no elegant way for
-                                                        # searching for the 
-                                                        # device dynamically
 
 
 # Prepare channel information
 # -------------------------------------------------------------------------
 
 # Number of channels to be used
-NUM_CHANNELS    = 2
+NUM_CHANNELS    = 8
 
 # Select channels of interest
 # Manually established list: to adapt if data structure changes
 ELEC            = {}
 ELEC["Fp2"]     = 0
 ELEC["Fp1"]     = 1
+ELEC["Cz"]      = 2
+ELEC["C4"]      = 3
+ELEC["C3"]      = 4
+ELEC["Pz"]      = 5
+ELEC["P4"]      = 6
+ELEC["P3"]      = 7
 
 IDX_ELEC        = ELEC["Fp2"]
 
@@ -59,13 +60,21 @@ IDX_ELEC        = ELEC["Fp2"]
 LEN_REFRACTORY = 6 # scarlar (seconds); Arbitrary, but "enough" (~Göldi)
 SOUND_FORMAT   = '.wav'
 
+
 # # Streaming parameters
 # -------------------------------------------------------------------------
 
-SAMPLERATE      = 200
+SAMPLERATE      = 250
 PGA             = 24
 BAUDRATE        = 115200
 TIMEOUT         = None
+
+
+# # Streaming parameters (class Receiver)
+# -------------------------------------------------------------------------
+
+IP              = 'localhost'
+PORT            = 12345
 
 
 # Buffer lengths in samples

@@ -181,7 +181,7 @@ class HandleData():
         # avoid hard-coding when changing platforms
         # =================================================================
         dirname       = os.path.dirname(__file__)
-        str2find      = 'EazzZyLearn'
+        str2find      = 'EazzZyLearn_pc'
         idx_base      = dirname.find(str2find)
         base_path     = dirname[0:idx_base+len(str2find)]
         cue_directory = base_path + r'/Sounds/'

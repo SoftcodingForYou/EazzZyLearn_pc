@@ -1,9 +1,7 @@
 from abc import abstractclassmethod
 import parameters as p
 import numpy as np
-import serial #Crucial: Install using pip3 install "pyserial", NOT "serial"
-import serial.tools.list_ports
-import keyboard
+import socket
 import json
 import time
 from threading import Thread
@@ -20,13 +18,9 @@ class Receiver:
         # =================================================================
 
         # Set streaming parameters
-        self.board_id       = p.HELMENT_ID
+        self.ip             = p.IP
+        self.port           = p.PORT
         self.sample_rate    = p.SAMPLERATE
-        self.pga            = p.PGA
-        self.baud_rate      = p.BAUDRATE
-        self.time_out       = p.TIMEOUT
-        self.search_device()
-        self.connect_board()
 
         # Set buffer parameters
         self.buffer_length  = p.MAIN_BUFFER_LENGTH
@@ -34,6 +28,8 @@ class Receiver:
 
         # Stop recording
         self.stop           = False
+
+        self.prep_socket(self.ip, self.port) # Connect to socket
         
         # Initialize zeros buffer and time stamps
         self.buffer         = self.prep_buffer(self.num_channels, self.buffer_length)
@@ -42,65 +38,10 @@ class Receiver:
         self.softstate      = 'enabled' # For forcing/pausing stimulations
 
 
-    def search_device(self):
-        # =================================================================
-        # Scans all ports and fills av_ports with valid serial COM values
-        # INPUT
-        #   /
-        # OUTPUT
-        #   av_ports        = Dictionnary of COM values for connection 
-        #                     types (object)
-        # =================================================================
-
-        self.av_ports       = {'USB': None, 'BT': None}
-
-        # Look for device: Bluetooth if available and USB only as fallback
-        # -----------------------------------------------------------------
-        myports = [tuple(ports) for ports in list(serial.tools.list_ports.comports())]
-        
-        for iPort in range(len(myports)):
-            print(list(myports[iPort]))
-            if self.board_id in list(myports[iPort])[2]:
-                # Bluetooth device query
-                self.av_ports["BT"] = list(myports[iPort])[0]
-                print('Found Helment connected via Bluetooth')
-            elif 'Silicon Labs CP210x USB to UART Bridge' in list(myports[iPort])[1]:
-                # USB device query
-                self.av_ports["USB"] = list(myports[iPort])[0]
-                print('Found Helment connected via USB')
-
-        if all(val == None for val in list(self.av_ports.values())):
-            raise Exception('Device could not be found')
-        else:
-            print(self.av_ports)
-
-
-    def connect_board(self):
-        # =================================================================
-        # Connects to device, preferrably by USB
-        # INPUT
-        #   baud_rate       = baud rate of the port (scalar)
-        #   time_out        = how long a message should be waited for
-        #                     default = None (infinite), scalar or None
-        #   av_ports        = Dictionnary with values being either None or 
-        #                     a strong a the port to connect to
-        # OUTPUT
-        #   ser             = Serial connection (object)
-        # =================================================================
-
-        # Open communication protocol
-        self.ser            = serial.Serial()
-        self.ser.baudrate   = self.baud_rate
-        self.ser.timeout    = self.time_out
-        if self.av_ports["USB"] != None:
-            self.desired_con= 2
-            self.ser.port   = self.av_ports["USB"]
-            str_comtype = 'Communication via USB'
-        elif self.av_ports["BT"] != None:
-            self.desired_con= 3
-            self.ser.port   = self.av_ports["BT"]
-            str_comtype = 'Communication via Bluetooth'
-        print(str_comtype + ' established\n')
+    def prep_socket(self, ip, port):
+        # Setup UDP protocol: connect to the UDP EEG streamer
+        self.receiver_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.receiver_sock.bind((ip, port))
 
         
     def prep_buffer(self, num_channels, length):
@@ -113,74 +54,14 @@ class Receiver:
         return np.zeros(length)
 
 
-    def bin_to_voltage(self, s_bin):
-        # =================================================================
-        # Convert binary into volts
-        # =================================================================
-        #s_bin = int(s_bin) # requieres int
-
-        if s_bin == 0:
-            return 0
-        if s_bin > 0 and s_bin <= 8388607:
-            sign_bit = s_bin
-        elif s_bin > 8388607 and s_bin <= 2*8388607:
-            sign_bit = -2*8388607 + s_bin - 1
-        else:
-            # This should not occur, but several users have had this issue:
-            # voltage = (4.5sign_bit)/(self.pga*8388607.0)
-            #     ^^^
-            # UnboundLocalError: cannot access local variable 'sign_bit' where it is not associated with a value
-            return 0
-        
-        voltage = (4.5*sign_bit)/(self.pga*8388607.0)
-        voltage = voltage * 1000000 # Convert to microvolts
-        return voltage
-
-
     def get_sample(self):
-        # Get eeg samples from the serial connection
+        # Get eeg samples from the UDP streamer
+        raw_message, _  = self.receiver_sock.recvfrom(1024)
+        eeg_data        = json.loads(raw_message)['data']  # Vector with length self.num_channel
 
-        while True:
-            raw_message     = str(self.ser.readline())
-
-            # Strip all non-json format characters
-            raw_message     = raw_message[2:]
-            raw_message     = raw_message.replace("\'", "")
-            raw_message     = raw_message.replace("\\r", "")
-            raw_message     = raw_message.replace("\\n", "")
-
-            # Handle JSON samples and add to signal buffer ----------------
-            try:
-                # 1) In general, serial messages have to be expected to be 
-                # incomplete and 2) Touching board components can lead to 
-                # message corruption. We prevent code breakage when 
-                # corrupted messages come in 
-                eeg_data_line   = json.loads(raw_message)
-                buffer_line     = [eeg_data_line["c1"],eeg_data_line["c2"]]
-                break
-            except json.JSONDecodeError: # NEEDS COMPLETION IN CASE OF KEY ERROR c1 and c2
-                # Take advantage and reset message queue
-                self.ser.read(self.ser.inWaiting())
-                continue
-
-        # Each channel carries self.s_per_buffer amounts of samples
-        if self.desired_con == 2:
-            eeg_data        = np.array([buffer_line])
-            eeg_data        = np.transpose(eeg_data)
-        elif self.desired_con == 3:
-            eeg_data        = np.array(buffer_line) # Avoid creating 3D matrix
-
-        # Convert binary to voltage values
-        # Temporarily convert into vector to avoid double for loop
-        dim_sizes           = eeg_data.shape
-        eeg_data            = np.reshape(eeg_data, eeg_data.size)
-        for iBin in range(eeg_data.size):
-            eeg_data[iBin] = self.bin_to_voltage(eeg_data[iBin])
-        eeg_data            = np.reshape(eeg_data, dim_sizes) # Back to original
-
-        # # Flip signals because OpenBCI streams data P - N pins which 
-        # # corresponds to Reference - Electrode
-        # eeg_data        = np.array([eeg_data]) * -1
+        # Flip signals because OpenBCI streams data P - N pins which 
+        # corresponds to Reference - Electrode
+        eeg_data        = np.array([eeg_data]) * -1
         
         return eeg_data
 
@@ -190,66 +71,32 @@ class Receiver:
 
 
     def fill_buffer(self):
-
-        if self.desired_con == 2: # Bluetooth
-            self.ser.port        = self.av_ports["USB"]
-            s_per_buffer    = 1
-        elif self.desired_con == 3: # USB
-            self.ser.port        = self.av_ports["BT"]
-            s_per_buffer    = 10
-
-        # Open communication ----------------------------------------------
-        if self.ser.port == None:
-            raise Exception('Verify that desired connection type (USB or Bluetooth) are indeed available')
-        else:
-            self.ser.open()
-
-        print('Board is booting up ...')
-        time.sleep(10)
-        self.ser.write(bytes(str(self.desired_con), 'utf-8'))
-        time.sleep(5)
-
-        board_booting = True
-        while board_booting and not keyboard.is_pressed('c'):
-            raw_message = str(self.ser.readline())
-            if '{' in raw_message and '}' in raw_message:
-                print('Fully started')
-                board_booting = False
-
-        # Eliminates the queue of incoming messages
-        self.ser.read(self.ser.inWaiting())
-
         # This functions fills the buffer in self.buffer
         # that later can be accesed to perfom the real time analysis
         while True:
             # Get samples
-            samples     = self.get_sample()
+            sample      = self.get_sample()
+            time_stamp  = self.get_time_stamp()
 
-            for iS in range(s_per_buffer):
-                sample = samples[:, iS]
-                sample = np.expand_dims(sample, 1)
-                time_stamp  = self.get_time_stamp()
+            # Transpose vector
+            sample = np.transpose(sample)
 
-                # Transpose vector
-                if sample.shape[0] == 1:
-                    sample = np.transpose(sample)
+            # Concatenate vector
+            update_buffer = np.concatenate((self.buffer, sample), axis=1)
 
-                # Concatenate vector
-                update_buffer = np.concatenate((self.buffer, sample), axis=1)
+            # save to new buffer
+            self.buffer = update_buffer[:, 1:]
 
-                # save to new buffer
-                self.buffer = update_buffer[:, 1:]
+            # Save time_stamp
+            self.time_stamps = np.append(self.time_stamps, time_stamp)
+            self.time_stamps = self.time_stamps[1:]
 
-                # Save time_stamp
-                self.time_stamps = np.append(self.time_stamps, time_stamp)
-                self.time_stamps = self.time_stamps[1:]
+            # real_time_algorithm
+            self.real_time_algorithm(self.buffer, self.time_stamps)
 
-                # real_time_algorithm
-                self.real_time_algorithm(self.buffer, self.time_stamps)
-
-                # Stop thread
-                if self.stop:
-                    return
+            # Stop thread
+            if self.stop:
+                return
 
 
     @abstractclassmethod
