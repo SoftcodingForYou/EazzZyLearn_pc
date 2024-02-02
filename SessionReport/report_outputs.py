@@ -21,7 +21,7 @@ class GenerateOutputs():
         self.subject_name       = subject["info"]["subject name"].replace("_", " ")
         self.recording_date     = datetime.strptime(subject["info"]["date"], "%d-%m-%Y_%H-%M-%S")
         self.input_dir          = input_dir
-        self.stim_range         = stim_range
+        self.stim_range         = [round(s) for s in stim_range]
         self.save_path          = os.path.join(self.input_dir, "Report")
         self.output_template    = os.path.join(os.path.dirname(__file__), "Report_template.svg")
 
@@ -171,7 +171,7 @@ class GenerateOutputs():
         ax[idx_ax].set_ylabel("Frequency [Hz]")
         ax[idx_ax].set_xlabel('')
         ax[idx_ax].set_xticklabels('')
-        ax[idx_ax].legend(['Espectrograma en el tiempo'], loc='upper right')
+        ax[idx_ax].legend(['Time-dependent spectrogram'], loc='upper right')
         cbar = fig.colorbar(im, ax=ax[0], shrink=0.95, fraction=0.1, aspect=25, location='top')
         cbar.ax.set_xlabel("Log Power (dB / Hz)", rotation=0, labelpad=2)
 
@@ -182,7 +182,7 @@ class GenerateOutputs():
         ax[idx_ax].set_xlim((subj_times[0]* ms_to_min * min_to_hrs, subj_times[-1]* ms_to_min * min_to_hrs))
         ax[idx_ax].set_xlabel('')
         ax[idx_ax].set_ylabel('Amplitude (uV)')
-        ax[idx_ax].legend(['Componente Delta', 'presentación de sonidos'], loc='upper right')
+        ax[idx_ax].legend(['Delta component', 'Sound presentation'], loc='upper right')
 
         idx_ax = 2
         # Plot4 EZL sleep scoring (deep sleep two step only)
@@ -195,7 +195,7 @@ class GenerateOutputs():
         # ax[idx_ax].set_ylabel('Hypnogram')
         ax[idx_ax].set_yticks([0, 1, 2])
         ax[idx_ax].set_yticklabels(['Deep sleep', 'Other', 'Awake'])
-        ax[idx_ax].legend(['Hipnograma'], loc='upper right')
+        ax[idx_ax].legend(['Hypnogram'], loc='upper right')
 
         plt.savefig(os.path.join(self.save_path, 'hypnogram.png'), bbox_inches='tight') # plt.show()
 
@@ -281,6 +281,7 @@ class GenerateOutputs():
         before              = 1  # seconds
         after               = 1  # seconds
         x_times             = range(0, (before+after)*1000, round(1000/samplingrate))
+        x_times             = [x / 1000 for x in list(x_times)]
 
         SlowOsc             = np.zeros((len(x_down), (before + after) * samplingrate))
         DownAmp             = np.zeros(len(x_down))
@@ -315,11 +316,11 @@ class GenerateOutputs():
 
         AvgOsc              = np.mean(SlowOsc, axis=0)
 
-        plt.figure()
+        plt.figure(figsize=(3, 2))
         for iPlt in range(SlowOsc.shape[0]):
             plt.plot(x_times, SlowOsc[iPlt], color='k')
         plt.plot(x_times, AvgOsc, color='r')
-        plt.xlabel("Time (ms)")
+        plt.xlabel("Time (s)")
         plt.ylabel("Amplitude (uV)")
         plt.savefig(os.path.join(self.save_path, 'grand_average.png'), bbox_inches='tight') # plt.show()
 
@@ -439,7 +440,7 @@ class GenerateOutputs():
         plt_ctl = ax.pcolormesh(t, f, subjTFR_cue[f_low:f_high, t_0:t_end], cmap='jet')
         fig.colorbar(plt_ctl, ax=ax, label='Magnitude (Z)')
         ax.plot([0, 0], [f[0], f[-1]], 'k')
-        ax.plot(t, subj_wf_cue[t_0:t_end], color='k')
+        # ax.plot(t, subj_wf_cue[t_0:t_end], color='k')
         plt.savefig(os.path.join(self.save_path, 'time_frequency.png'), bbox_inches='tight') # plt.show()
 
     def extract_tf_matrix(self, epochs, freqs, cycles):

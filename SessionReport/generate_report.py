@@ -5,18 +5,19 @@ run_extraction          = True # True or False for long step to be done
 
 # Stims per hour (/X etimated hours of recordings in sleep study)
 stim_range              = [
-    333,
-    191,
-    303,
-    115,
-    55,
-    65,
-    131,
-    117,
-    88,
-    102,
-    68,
-    77,
+    296 / 2.02, # S003
+    333 / 1.85, # S004
+    191 / 1.11, # S005
+    303 / 1.33, # S006
+    138 / 2.04, # S007
+    91 / 2.37, # S009
+    102 / 1.05, # S013
+    153 / 1.28, # S016
+    165 / 2.09, # S017
+    92 / 0.55, # S021
+    145 / 1.15, # S027
+    85 / 0.95, # S029
+    77 / 2.01, # Soledad Acuña Mendoza 2024-01-2
 ] # Needs manual updating after each user
 
 
