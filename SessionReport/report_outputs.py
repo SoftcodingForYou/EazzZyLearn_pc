@@ -11,6 +11,7 @@ matplotlib.use('TkAgg')  # Fixes plotting issues on GNU/Linux
 import numpy.matlib as mtl
 import mne
 from var_storage import VariableOnDisk
+from datetime import datetime
 
 class GenerateOutputs():
 
@@ -18,10 +19,11 @@ class GenerateOutputs():
         self.subject            = subject
         self.sfr                = int(subject["info"]["sample freq"])
         self.subject_name       = subject["info"]["subject name"].replace("_", " ")
+        self.recording_date     = datetime.strptime(subject["info"]["date"], "%d-%m-%Y_%H-%M-%S")
         self.input_dir          = input_dir
         self.stim_range         = stim_range
-
         self.save_path          = os.path.join(self.input_dir, "Report")
+        self.output_template    = os.path.join(os.path.dirname(__file__), "Report_template.svg")
 
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
@@ -85,13 +87,13 @@ class GenerateOutputs():
         self.generate_hypnogram(y_hypnogram)
 
         # 2. Recording time
-        self.replace_recording_time()
+        self.calculate_recording_time()
 
         # 3. Time asleep vs total recording time
-        self.replace_percentage_asleep()
+        self.calculate_percentage_asleep()
 
         # 4. Percentage in deep sleep
-        self.replace_percentage_deep_sleep()
+        self.calculate_percentage_deep_sleep()
 
     def generate_hypnogram(self, y_hypnogram):
 
@@ -159,7 +161,7 @@ class GenerateOutputs():
         delta_signal        = delta_signal[0:last_signal_time]
         x_stim              = np.delete(x_stim, x_stim > last_signal_time)
 
-        fig, ax = plt.subplots(3, 1, figsize=(12, 12))
+        fig, ax = plt.subplots(3, 1, figsize=(9, 6))
 
         idx_ax = 0
         # Plot1 spectrogram of RT channel using yasa.plot_sprectrogram()
@@ -169,16 +171,18 @@ class GenerateOutputs():
         ax[idx_ax].set_ylabel("Frequency [Hz]")
         ax[idx_ax].set_xlabel('')
         ax[idx_ax].set_xticklabels('')
+        ax[idx_ax].legend(['Espectrograma en el tiempo'], loc='upper right')
         cbar = fig.colorbar(im, ax=ax[0], shrink=0.95, fraction=0.1, aspect=25, location='top')
         cbar.ax.set_xlabel("Log Power (dB / Hz)", rotation=0, labelpad=2)
 
         idx_ax = 1
         ax[idx_ax].plot(subj_times * ms_to_min * min_to_hrs, delta_signal, linewidth=0.5, color=[0.2, 0.2, 0.7])
-        ax[idx_ax].scatter(subj_times[x_stim] * ms_to_min * min_to_hrs, mtl.repmat(0, x_stim.size, 1), 25, 'k', zorder=2)
+        ax[idx_ax].scatter(subj_times[x_stim] * ms_to_min * min_to_hrs, mtl.repmat(0, x_stim.size, 1), 25, 'k', zorder=2000)
         ax[idx_ax].set_ylim((-1.5*np.std(delta_signal), 1.5*np.std(delta_signal)))
         ax[idx_ax].set_xlim((subj_times[0]* ms_to_min * min_to_hrs, subj_times[-1]* ms_to_min * min_to_hrs))
         ax[idx_ax].set_xlabel('')
         ax[idx_ax].set_ylabel('Amplitude (uV)')
+        ax[idx_ax].legend(['Componente Delta', 'presentación de sonidos'], loc='upper right')
 
         idx_ax = 2
         # Plot4 EZL sleep scoring (deep sleep two step only)
@@ -188,20 +192,25 @@ class GenerateOutputs():
         ax[idx_ax].set_xlim(0, t[0:idx_end].max())
         ax[idx_ax].set_xlabel("Time [hrs]")
         ax[idx_ax].set_ylim((-0.25, 2.25))
-        ax[idx_ax].set_ylabel('Hypnogram')
+        # ax[idx_ax].set_ylabel('Hypnogram')
         ax[idx_ax].set_yticks([0, 1, 2])
         ax[idx_ax].set_yticklabels(['Deep sleep', 'Other', 'Awake'])
+        ax[idx_ax].legend(['Hipnograma'], loc='upper right')
 
         plt.savefig(os.path.join(self.save_path, 'hypnogram.png'), bbox_inches='tight') # plt.show()
 
-    def replace_recording_time(self):
-        pass
+    def calculate_recording_time(self):
+        ms_to_hrs = 1 / 3600000
+        self.recording_time_hrs = self.subject["times"][-1] * ms_to_hrs
 
-    def replace_percentage_asleep(self):
-        pass
+    def calculate_percentage_asleep(self):
+        percentage_awake = sum(self.subject["sleep"]["y_wake"]) / self.subject["sleep"]["y_wake"].size * 100
+        self.percentage_asleep = round(100 - percentage_awake, 1)
 
-    def replace_percentage_deep_sleep(self):
-        pass
+    def calculate_percentage_deep_sleep(self):
+        proportion_awake = sum(self.subject["sleep"]["y_wake"]) / self.subject["sleep"]["y_wake"].size
+        length_sleep = self.subject["sleep"]["y_sws"].size * (1 - proportion_awake)
+        self.percentage_deep_sleep = round(sum(self.subject["sleep"]["y_sws"]) / length_sleep * 100, 1)
 
     def filter_signal(self, signal, freq_range, sample_rate, filter_order, filter_type):
 
@@ -256,10 +265,16 @@ class GenerateOutputs():
         self.stimulation_scaled()
         
         # 3. Used cue sound
-        self.replace_cue_information()
+        self.extract_cue_information()
 
         # 4. Time-frequency around stimulation
         self.stim_time_freq()
+
+        # 5. Number of slow oscillations
+        self.extract_number_so()
+
+    def extract_number_so(self):
+        self.number_so = self.subject["pred"]["x_down"].size
         
     def grand_average(self, delta_signal, x_down, times, samplingrate):
 
@@ -311,23 +326,26 @@ class GenerateOutputs():
     def stimulation_scaled(self):
         
         avg_stims = np.mean(self.stim_range)
-        s_stims = len(self.subject["stim"]["x_stim"])
+        s_stims = round(len(self.subject["stim"]["x_stim"]) / self.recording_time_hrs) # per hour of recording
         x = np.arange(np.min(self.stim_range), np.max(self.stim_range), 1)
         y = np.ones(x.size)
 
         if s_stims > np.max(self.stim_range):
             x_stims = np.max(self.stim_range)
+            i_color = -1
         elif s_stims < np.min(self.stim_range):
             x_stims = np.min(self.stim_range)
+            i_color = 0
         else:
             x_stims = s_stims
+            i_color = s_stims-np.min(self.stim_range)
 
         colors = plt.cm.jet(np.linspace(0,1,x.size))
 
         fig, ax = plt.subplots(1, 1, figsize=(4, 1))
         for i in range(x.size):
             ax.scatter(x[i], y[i], c=colors[i, :], marker="s", s=25)
-        ax.scatter(x_stims, 1, c=colors[s_stims-np.min(self.stim_range), :], edgecolor='k', s=100)
+        ax.scatter(x_stims, 1, c=colors[i_color, :], edgecolor='k', s=100)
         ax.text(x_stims, 1+0.02, str(s_stims))
         ax.scatter(avg_stims, 1, c=colors[round(avg_stims)-np.min(self.stim_range), :], edgecolor='k', s=100)
         ax.text(avg_stims-40, 1-0.04, "".join(("Average = ", str(round(avg_stims)))))
@@ -335,8 +353,8 @@ class GenerateOutputs():
         plt.axis('off')
         plt.savefig(os.path.join(self.save_path, 'stims_scaled.png'), bbox_inches='tight') # plt.show()
 
-    def replace_cue_information(self):
-        pass
+    def extract_cue_information(self):
+        self.used_cue = self.subject["info"]["chosencue"]
 
     def stim_time_freq(self):
 
@@ -362,8 +380,8 @@ class GenerateOutputs():
 
         id_stim = []
         for event in event_list:
-            # if event == self.subject["info"]["chosencue"]:
-            if event == "Stim_down":
+            if event == self.subject["info"]["chosencue"]:
+            # if event == "Stim_down":
                 id_stim = event_id[event]
         
         # Slice data into Place and Cue epochs
@@ -384,7 +402,7 @@ class GenerateOutputs():
 
         # Scale amplitude
         subj_wf_cue             = (subj_wf_cue - min(freq_range)) / (max(freq_range) - min(freq_range))
-        subj_wf_cue             = subj_wf_cue + max(freq_range)/2
+        subj_wf_cue             = subj_wf_cue + max(freq_range) - min(freq_range)
         
         # Time-frequency extraction
         # ---------------------------------------------------------------------
@@ -421,9 +439,8 @@ class GenerateOutputs():
         plt_ctl = ax.pcolormesh(t, f, subjTFR_cue[f_low:f_high, t_0:t_end], cmap='jet')
         fig.colorbar(plt_ctl, ax=ax, label='Magnitude (Z)')
         ax.plot([0, 0], [f[0], f[-1]], 'k')
-        ax.plot(t, subj_wf_cue[t_0:t_end])
+        ax.plot(t, subj_wf_cue[t_0:t_end], color='k')
         plt.savefig(os.path.join(self.save_path, 'time_frequency.png'), bbox_inches='tight') # plt.show()
-
 
     def extract_tf_matrix(self, epochs, freqs, cycles):
             
@@ -480,3 +497,98 @@ class GenerateOutputs():
         avgTFR  = np.mean(chanTF.data, 0)
 
         return avgTFR, f, t
+    
+    def output_svg(self):
+        with open(self.output_template, encoding='utf8') as f:
+            lines = f.readlines()
+
+        iL = 0
+        set_parameters = {
+            "set_username":             False,
+            "set_date":                 False,
+            "set_hypnogram":            False,
+            "set_grand_average":        False,
+            "set_time_frequency":       False,
+            "set_stimulation_scale":    False,
+            "set_recording_time":       False,
+            "set_sleep_proportion":     False,
+            "set_deep_sleep_prop":      False,
+            "set_total_sos":            False,
+            "set_number_and_name_cue":  False,
+        }
+        for line in lines:
+
+            # Set user name
+            if "Usuario: {}" in line:
+                line = line.replace("Usuario: {}", "Usuario: {}".format(self.subject_name))
+                lines[iL] = line
+                set_parameters["set_username"] = True
+            
+            # Set date
+            if "Fecha: {}" in line:
+                line = line.replace("Fecha: {}", "Fecha: {}".format(datetime.strftime(self.recording_date, "%B %d, %Y (%H:%M)")))
+                lines[iL] = line
+                set_parameters["set_date"] = True
+
+            # Set hypnogram
+            if "hypnogram.png" in line:
+                # line = line.replace("hypnogram.png", "{}".format(os.path.join(self.save_path, "hypnogram.png")))
+                lines[iL] = line
+                set_parameters["set_hypnogram"] = True
+
+            # Set Slow Osc. grand average
+            if "grand_average.png" in line:
+                # line = line.replace("grand_average.png", "{}".format(os.path.join(self.save_path, "grand_average.png")))
+                lines[iL] = line
+                set_parameters["set_grand_average"] = True
+
+            # Set time-frequency
+            if "time_frequency.png" in line:
+                # line = line.replace("time_frequency.png", "{}".format(os.path.join(self.save_path, "time_frequency.png")))
+                lines[iL] = line
+                set_parameters["set_time_frequency"] = True
+
+            # Set stimulation scale
+            if "stims_scaled.png" in line:
+                # line = line.replace("stims_scaled.png", "{}".format(os.path.join(self.save_path, "stims_scaled.png")))
+                lines[iL] = line
+                set_parameters["set_stimulation_scale"] = True
+
+            # Set recording time
+            if "durante {} horas" in line:
+                line = line.replace("durante {} horas", "durante {} horas".format(round(self.recording_time_hrs, 2)))
+                lines[iL] = line
+                set_parameters["set_recording_time"] = True
+
+            # Set sleep proportion
+            if "durante el {} %" in line:
+                line = line.replace("durante el {} %", "durante el {} %".format(self.percentage_asleep))
+                lines[iL] = line
+                set_parameters["set_sleep_proportion"] = True
+
+            # Set sleep proportion
+            if "dormía es de {} %" in line:
+                line = line.replace("dormía es de {} %", "dormía es de {} %".format(self.percentage_deep_sleep))
+                lines[iL] = line
+                set_parameters["set_deep_sleep_prop"] = True
+
+            # Set total amount of SOs
+            if "de {} ondas lentas" in line:
+                line = line.replace("de {} ondas lentas", "de {} ondas lentas".format(self.number_so))
+                lines[iL] = line
+                set_parameters["set_total_sos"] = True
+
+            # Set number of stimulated SOs and cue
+            if "Se estimularon {} de esas con el sonido “{}”" in line:
+                line = line.replace("Se estimularon {} de esas con el sonido “{}”",
+                             "Se estimularon {} de esas con el sonido “{}”".format(len(self.subject["stim"]["x_stim"]), self.used_cue))
+                lines[iL] = line
+                set_parameters["set_number_and_name_cue"] = True
+
+            iL += 1
+
+        if len([el for el in set_parameters.values() if el == False]) > 0:
+            raise Exception("One or multiple parameters were not set in output file")
+
+        with open(os.path.join(self.save_path, "Informe MemoRey.svg"), 'w', encoding='utf8') as f:
+            f.write("".join(lines))

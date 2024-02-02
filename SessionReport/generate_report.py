@@ -1,7 +1,7 @@
 # Parameters
 # =========================================================================
-input_dir               = '/home/david/Documents/MemoRey/EazzZyLearn_output/Soledad_Acuña_Mendoza/'
-run_extraction          = False # True or False for long step to be done
+input_dir               = 'D:\Gits\Helment\EazzZyLearn_pc\EazzZyLearn_output\Soledad_Acuña_Mendoza'
+run_extraction          = True # True or False for long step to be done
 
 # Stims per hour (/X etimated hours of recordings in sleep study)
 stim_range              = [
@@ -48,7 +48,7 @@ generate_outputs        = GenerateOutputs(subject, input_dir, stim_range)
 # Basic sleep metrics
 # -------------------------------------------------------------------------
 print("Extracting basic sleep metrics ...")
-# generate_outputs.basic_sleep_metrics()
+generate_outputs.basic_sleep_metrics()
 print("Done!")
 
 # Stimulations
@@ -56,3 +56,9 @@ print("Done!")
 print("Extracting stimulation metrics ...")
 generate_outputs.stimulation_analysis()
 print("Done!")
+
+print("Generating file")
+generate_outputs.output_svg()
+print("Done")
+
+print("Report generated in {}".format(generate_outputs.save_path))
