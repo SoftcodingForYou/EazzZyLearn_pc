@@ -23,7 +23,7 @@ class GenerateOutputs():
         self.input_dir          = input_dir
         self.stim_range         = [round(s) for s in stim_range]
         self.save_path          = os.path.join(self.input_dir, "Report")
-        self.output_template    = os.path.join(os.path.dirname(__file__), "Report_template.svg")
+        self.output_template    = os.path.join(os.path.dirname(__file__), "Report_template_new.svg")
 
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
@@ -161,7 +161,7 @@ class GenerateOutputs():
         delta_signal        = delta_signal[0:last_signal_time]
         x_stim              = np.delete(x_stim, x_stim > last_signal_time)
 
-        fig, ax = plt.subplots(3, 1, figsize=(9, 6))
+        fig, ax = plt.subplots(2, 1, figsize=(9, 4))
 
         idx_ax = 0
         # Plot1 spectrogram of RT channel using yasa.plot_sprectrogram()
@@ -176,15 +176,6 @@ class GenerateOutputs():
         cbar.ax.set_xlabel("Log Power (dB / Hz)", rotation=0, labelpad=2)
 
         idx_ax = 1
-        ax[idx_ax].plot(subj_times * ms_to_min * min_to_hrs, delta_signal, linewidth=0.5, color=[0.2, 0.2, 0.7])
-        ax[idx_ax].scatter(subj_times[x_stim] * ms_to_min * min_to_hrs, mtl.repmat(0, x_stim.size, 1), 25, 'k', zorder=2000)
-        ax[idx_ax].set_ylim((-1.5*np.std(delta_signal), 1.5*np.std(delta_signal)))
-        ax[idx_ax].set_xlim((subj_times[0]* ms_to_min * min_to_hrs, subj_times[-1]* ms_to_min * min_to_hrs))
-        ax[idx_ax].set_xlabel('')
-        ax[idx_ax].set_ylabel('Amplitude (uV)')
-        ax[idx_ax].legend(['Delta component', 'Sound presentation'], loc='upper right')
-
-        idx_ax = 2
         # Plot4 EZL sleep scoring (deep sleep two step only)
         ax[idx_ax].plot(t[0:idx_end], y_hypnogram[0:idx_end], linewidth=2, color='k')
         # for iSc in range(idx_end):
@@ -198,6 +189,21 @@ class GenerateOutputs():
         ax[idx_ax].legend(['Hypnogram'], loc='upper right')
 
         plt.savefig(os.path.join(self.save_path, 'hypnogram.png'), bbox_inches='tight') # plt.show()
+
+        fig, ax = plt.subplots(1, 1, figsize=(9, 2))
+
+        idx_ax = 0
+        ax.plot(subj_times * ms_to_min * min_to_hrs, delta_signal, linewidth=0.5, color=[0.2, 0.2, 0.7])
+        ax.scatter(subj_times[x_stim] * ms_to_min * min_to_hrs, mtl.repmat(0, x_stim.size, 1), 25, 'k', zorder=2000)
+        ax.set_ylim((-1.5*np.std(delta_signal), 1.5*np.std(delta_signal)))
+        ax.set_xlim((subj_times[0]* ms_to_min * min_to_hrs, subj_times[-1]* ms_to_min * min_to_hrs))
+        ax.set_xlabel('')
+        ax.set_ylabel('Amplitude (uV)')
+        ax.set_xlabel("Time [hrs]")
+        ax.legend(['Delta component', 'Sound presentation'], loc='upper right')
+
+        plt.savefig(os.path.join(self.save_path, 'delta_component.png'), bbox_inches='tight') # plt.show()
+
 
     def calculate_recording_time(self):
         ms_to_hrs = 1 / 3600000
@@ -508,6 +514,7 @@ class GenerateOutputs():
             "set_username":             False,
             "set_date":                 False,
             "set_hypnogram":            False,
+            "set_delta_component":      False,
             "set_grand_average":        False,
             "set_time_frequency":       False,
             "set_stimulation_scale":    False,
@@ -555,6 +562,12 @@ class GenerateOutputs():
                 lines[iL] = line
                 set_parameters["set_stimulation_scale"] = True
 
+            # Set delta component
+            if "delta_component.png" in line:
+                # line = line.replace("delta_component.png", "{}".format(os.path.join(self.save_path, "delta_component.png")))
+                lines[iL] = line
+                set_parameters["set_delta_component"] = True
+
             # Set recording time
             if "durante {} horas" in line:
                 line = line.replace("durante {} horas", "durante {} horas".format(round(self.recording_time_hrs, 2)))
@@ -574,8 +587,8 @@ class GenerateOutputs():
                 set_parameters["set_deep_sleep_prop"] = True
 
             # Set total amount of SOs
-            if "de {} ondas lentas" in line:
-                line = line.replace("de {} ondas lentas", "de {} ondas lentas".format(self.number_so))
+            if "de {} ondas Delta" in line:
+                line = line.replace("de {} ondas Delta", "de {} ondas Delta".format(self.number_so))
                 lines[iL] = line
                 set_parameters["set_total_sos"] = True
 
@@ -591,5 +604,7 @@ class GenerateOutputs():
         if len([el for el in set_parameters.values() if el == False]) > 0:
             raise Exception("One or multiple parameters were not set in output file")
 
-        with open(os.path.join(self.save_path, "Informe MemoRey.svg"), 'w', encoding='utf8') as f:
+        with open(os.path.join(
+            self.save_path,
+            "Informe MemoRey " + self.subject_name + " {}".format(datetime.strftime(self.recording_date, "%d-%B-%Y")) + ".svg"), 'w', encoding='utf8') as f:
             f.write("".join(lines))
