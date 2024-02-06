@@ -5,9 +5,9 @@ OUTPUT_DIR      = './EazzZyLearn_output'
 
 SUBJECT_INFO    = {
     'name':         'Generic',                          # string (freely choses)
-    'age':          '0',                          # scalar (years)
-    'sex':          'Generic',                          # Male or Female
-    'chosencue':    'heart',   # Sound to present during sleep
+    'age':          '00',                          # scalar (years)
+    'sex':          'Female',                          # Male or Female
+    'chosencue':    'gong',   # Sound to present during sleep
     'background':   'Meditative_Mind_P1F9MiPr2Vs_short',        # Background sound to avoid silent intervals
     'cueinterval':  '1',                                # float (minutes)
     }
