@@ -534,6 +534,8 @@ class DataExtraction():
         for stim in stimulations:
             if len(stim) == 0:
                 continue
+            if ".wav" not in stim:
+                continue
             # stim_times.append(float(stim[0:stim.find(',')]))
             stim_times.append(float(stim.split(',')[0]))
             stim_str = stim.split(',')[1]
@@ -561,7 +563,7 @@ class DataExtraction():
         Stim_stamps["y_stim"] = np.delete(y_stim, idx_reject)
         Stim_stamps["c_stim"] = np.delete(cond_stim, idx_reject)
 
-        print("Removed {} stimulations because of non-physiological amplitudes".format(idx_reject))
+        print("Removed stimulations {} because of non-physiological amplitudes".format(idx_reject))
 
         return Stim_stamps
 
