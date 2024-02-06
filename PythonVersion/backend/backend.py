@@ -25,6 +25,10 @@ class Backend(Receiver):
         self.SgPrc  = SignalProcessing()
         self.Pdct   = PredictSlowOscillation()
 
+        # Start fading background music
+        background_sound, sampling = self.HndlDt.load_background_sound()
+        self.Cng.start_fading_sound(background_sound, sampling)
+
         # Start infinite call to real_time_algorithm()
         self.start_receiver(self.HndlDt.output_dir, self.HndlDt.subject_info)
 
@@ -66,7 +70,8 @@ class Backend(Receiver):
                 current_time)
         elif any(keyboard.is_pressed(key) for key in map(str, np.arange(1,self.num_channels+1))):
             number = keyboard.read_key()
-            self.SgPrc.switch_channel(number, self.HndlDt.stim_path, current_time)
+            if "flecha" not in number:
+                self.SgPrc.switch_channel(number, self.HndlDt.stim_path, current_time)
         
         if self.softstate == 'paused':
             if self.print_time_stamp + 1000 < current_time:

@@ -1,6 +1,6 @@
 # Parameters
 # =========================================================================
-input_dir               = 'D:\Gits\Helment\EazzZyLearn_pc\EazzZyLearn_output\Soledad_Acuña_Mendoza'
+input_dir               = 'D:/Gits/Helment/EazzZyLearn_pc/EazzZyLearn_output/Nancy'
 run_extraction          = True # True or False for long step to be done
 
 # Stims per hour (/X etimated hours of recordings in sleep study)

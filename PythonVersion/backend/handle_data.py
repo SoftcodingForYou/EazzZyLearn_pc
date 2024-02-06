@@ -65,6 +65,16 @@ class HandleData():
         # -----------------------------------------------------------------
         self.sample_count       = 0
         self.saving_interval    = p.DATA_SAVE_INTERVAL
+
+        # Background sound
+        self.background_sound   = p.SUBJECT_INFO["background"]
+        self.sound_format       = p.SOUND_FORMAT
+
+
+    def load_background_sound(self):
+        return self.prep_cue_load(
+            self.cue_dir, self.background_sound + self.sound_format
+            ), self.soundsampling
         
 
     def prep_output_dir(self, output_dir, subject_info):

@@ -1,6 +1,7 @@
 # Collection of methods associated with memory cueing.
 import parameters as p
 import sounddevice as sd
+import numpy as np
 sd.default.latency = 'low' # Crucial to reduce onset latency of cues
 
 
@@ -20,6 +21,13 @@ class Cueing:
         self.len_refractory     = p.LEN_REFRACTORY * 1000
         self.stim_time          = 0 # Last stimulation time stamp (Used to respect refractory periods)
         self.s_stim             = 0 # Keep count of stimulations (scalar)
+
+
+    def start_fading_sound(self, sound, soundsampling):
+        # Fade sound array
+        sound_faded = sound * np.arange(1, 0, -1/sound.size) # Slowly decreasing amplitude to 0
+        # Launch background ambient sound
+        sd.play(sound_faded, soundsampling, blocking = False, loop = False)
 
     
     def cue_play(self, cue_array, sample_rate):
