@@ -393,38 +393,45 @@ class GenerateOutputs():
         
         # Slice data into Place and Cue epochs
         # ---------------------------------------------------------------------
-        epochs_cue          = mne.Epochs(raw, events, 
-            tmin=v_window[0], tmax=v_window[1], event_id=id_stim,
-            preload=True, event_repeated='error',
-            baseline = None, picks = 'all',
-            verbose='WARNING')
-
-        epochs_plot          = mne.Epochs(raw_plot, events, 
-            tmin=v_window[0], tmax=v_window[1], event_id=id_stim,
-            preload=True, event_repeated='error',
-            baseline = None, picks = 'all',
-            verbose='WARNING')
-        subj_avg                = epochs_plot.average(picks=[c for c in epochs_plot.ch_names if c in channels])
-        subj_wf_cue             = np.mean(subj_avg.data, 0)
-
-        # Scale amplitude
-        subj_wf_cue             = (subj_wf_cue - min(freq_range)) / (max(freq_range) - min(freq_range))
-        subj_wf_cue             = subj_wf_cue + max(freq_range) - min(freq_range)
-        
-        # Time-frequency extraction
-        # ---------------------------------------------------------------------
         freqs                   = np.arange(freq_range[0], freq_range[1], f_step)
-        cycles                  = freqs / 2
-        print('Computing TF for Cue epochs ...')
-        chanTF_epochs_cue       = self.extract_tf_matrix(epochs_cue, freqs, cycles)
-        print("Done!")
 
-        # Normalization over epochs
-        print('Normalizing TF matrices ...')
-        normTF_epochs_cue       = self.normalize_tf_matrices(chanTF_epochs_cue, v_baseline)
-        print("Done!")
+        if len(self.subject["stim"]["x_stim"]) == 0:
+            t                   = np.arange(v_window[0], v_window[-1], 0.10)
+            subjTFR_cue         = np.zeros((freqs.size-1, t.size))
+            f                   = freqs
+        else:
+            epochs_cue          = mne.Epochs(raw, events, 
+                tmin=v_window[0], tmax=v_window[1], event_id=id_stim,
+                preload=True, event_repeated='error',
+                baseline = None, picks = 'all',
+                verbose='WARNING')
 
-        subjTFR_cue, f, t       = self.grand_average_tf(normTF_epochs_cue, channels)
+            epochs_plot          = mne.Epochs(raw_plot, events, 
+                tmin=v_window[0], tmax=v_window[1], event_id=id_stim,
+                preload=True, event_repeated='error',
+                baseline = None, picks = 'all',
+                verbose='WARNING')
+            subj_avg                = epochs_plot.average(picks=[c for c in epochs_plot.ch_names if c in channels])
+            subj_wf_cue             = np.mean(subj_avg.data, 0)
+
+            # Scale amplitude
+            subj_wf_cue             = (subj_wf_cue - min(freq_range)) / (max(freq_range) - min(freq_range))
+            subj_wf_cue             = subj_wf_cue + max(freq_range) - min(freq_range)
+        
+            # Time-frequency extraction
+            # ---------------------------------------------------------------------
+            
+            cycles                  = freqs / 2
+            print('Computing TF for Cue epochs ...')
+            chanTF_epochs_cue       = self.extract_tf_matrix(epochs_cue, freqs, cycles)
+            print("Done!")
+
+            # Normalization over epochs
+            print('Normalizing TF matrices ...')
+            normTF_epochs_cue       = self.normalize_tf_matrices(chanTF_epochs_cue, v_baseline)
+            print("Done!")
+
+            subjTFR_cue, f, t       = self.grand_average_tf(normTF_epochs_cue, channels)
 
         # Plot result: Average time-frequency response to stimulation
         # -------------------------------------------------------------------------
@@ -446,7 +453,6 @@ class GenerateOutputs():
         plt_ctl = ax.pcolormesh(t, f, subjTFR_cue[f_low:f_high, t_0:t_end], cmap='jet')
         fig.colorbar(plt_ctl, ax=ax, label='Magnitude (Z)')
         ax.plot([0, 0], [f[0], f[-1]], 'k')
-        # ax.plot(t, subj_wf_cue[t_0:t_end], color='k')
         plt.savefig(os.path.join(self.save_path, 'time_frequency.png'), bbox_inches='tight') # plt.show()
 
     def extract_tf_matrix(self, epochs, freqs, cycles):
