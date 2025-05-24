@@ -5,6 +5,7 @@ import socket
 import json
 import time
 from threading import Thread
+from pythonosc import dispatcher, osc_server
 
 class Receiver:
 
@@ -29,7 +30,9 @@ class Receiver:
         # Stop recording
         self.stop           = False
 
-        self.prep_socket(self.ip, self.port) # Connect to socket
+        # self.prep_socket(self.ip, self.port) # Connect to socket
+        self.prep_osc_receiver(self.ip, self.port) # Connect to OSC receiver
+        self.current_eeg_data = None
         
         # Initialize zeros buffer and time stamps
         self.buffer         = self.prep_buffer(self.num_channels, self.buffer_length)
@@ -43,6 +46,24 @@ class Receiver:
         self.receiver_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.receiver_sock.bind((ip, port))
 
+
+    def prep_osc_receiver(self, ip, port):
+        # Setup OSC server to receive EEG data
+        self.dispatcher = dispatcher.Dispatcher()
+        self.dispatcher.map("/eeg", self.handle_eeg_message)  # Map OSC address to handler
+        
+        # Create OSC server
+        self.server = osc_server.ThreadingOSCUDPServer((ip, port), self.dispatcher)
+        self.server_thread = Thread(target=self.server.serve_forever)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+
+
+    def handle_eeg_message(self, address, *args): # TODO: This does not get called when turning into Muse's OSC streamer
+        # Handle incoming OSC message
+        # args[0] should contain the EEG data
+        self.current_eeg_data = np.array([args[0]]) * -1  # Keep the signal flipping logic
+
         
     def prep_buffer(self, num_channels, length):
         # This functions creates the buffer structure
@@ -54,17 +75,22 @@ class Receiver:
         return np.zeros(length)
 
 
-    def get_sample(self):
-        # Get eeg samples from the UDP streamer
-        raw_message, _  = self.receiver_sock.recvfrom(1024)
-        eeg_data        = json.loads(raw_message)['data']  # Vector with length self.num_channel
+    # def get_sample(self):
+    #     # Get eeg samples from the UDP streamer
+    #     raw_message, _  = self.receiver_sock.recvfrom(1024)
+    #     eeg_data        = json.loads(raw_message)['data']  # Vector with length self.num_channel
 
-        # Flip signals because OpenBCI streams data P - N pins which 
-        # corresponds to Reference - Electrode
-        eeg_data        = np.array([eeg_data]) * -1
+    #     # Flip signals because OpenBCI streams data P - N pins which 
+    #     # corresponds to Reference - Electrode
+    #     eeg_data        = np.array([eeg_data]) * -1
         
-        return eeg_data
+    #     return eeg_data
 
+    def get_sample(self):
+        # Get eeg samples from the OSC stream
+        if self.current_eeg_data is not None:
+            return self.current_eeg_data
+        return np.zeros((1, self.num_channels))  # Return zeros if no data received yet
 
     def get_time_stamp(self):
         return round(time.perf_counter() * 1000 - self.start_time, 4)

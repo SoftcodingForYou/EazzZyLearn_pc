@@ -64,7 +64,7 @@ SOUND_FORMAT   = '.wav'
 # # Streaming parameters
 # -------------------------------------------------------------------------
 
-SAMPLERATE      = 250
+SAMPLERATE      = 256
 PGA             = 24
 BAUDRATE        = 115200
 TIMEOUT         = None
