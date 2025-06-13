@@ -1,6 +1,6 @@
 # Parameters
 # =========================================================================
-input_dir               = 'D:/Gits/Helment/EazzZyLearn_pc/EazzZyLearn_output/Nancy'
+input_dir               = 'path/to/EazzZyLearn/output'
 run_extraction          = True # True or False for long step to be done
 
 # Stims per hour (/X etimated hours of recordings in sleep study)
@@ -17,7 +17,7 @@ stim_range              = [
     92 / 0.55, # S021
     145 / 1.15, # S027
     85 / 0.95, # S029
-    77 / 2.01, # Soledad Acuña Mendoza 2024-01-2
+    77 / 2.01, # SAM 2024-01-2
 ] # Needs manual updating after each user
 
 
