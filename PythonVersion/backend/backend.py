@@ -26,8 +26,8 @@ class Backend(Receiver):
         self.Pdct   = PredictSlowOscillation()
 
         # Start fading background music
-        background_sound, sampling = self.HndlDt.load_background_sound()
-        self.Cng.start_fading_sound(background_sound, sampling)
+        # background_sound, sampling = self.HndlDt.load_background_sound()
+        # self.Cng.start_fading_sound(background_sound, sampling)
 
         # Start infinite call to real_time_algorithm()
         self.start_receiver(self.HndlDt.output_dir, self.HndlDt.subject_info)

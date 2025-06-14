@@ -17,21 +17,19 @@ SUBJECT_INFO    = {
 # -------------------------------------------------------------------------
 
 # Number of channels to be used
-NUM_CHANNELS    = 8
+NUM_CHANNELS    = 6
 
 # Select channels of interest
 # Manually established list: to adapt if data structure changes
 ELEC            = {}
-ELEC["Fp2"]     = 0
-ELEC["Fp1"]     = 1
-ELEC["Cz"]      = 2
-ELEC["C4"]      = 3
-ELEC["C3"]      = 4
-ELEC["Pz"]      = 5
-ELEC["P4"]      = 6
-ELEC["P3"]      = 7
+ELEC["TP9"]     = 0
+ELEC["AF7"]     = 1
+ELEC["AF8"]     = 2
+ELEC["TP10"]    = 3
+ELEC["Aux1"]    = 4
+ELEC["Aux2"]    = 5
 
-IDX_ELEC        = ELEC["Fp2"]
+IDX_ELEC        = ELEC["AF7"]
 
 
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -73,7 +71,7 @@ TIMEOUT         = None
 # # Streaming parameters (class Receiver)
 # -------------------------------------------------------------------------
 
-IP              = 'localhost'
+IP              = '0.0.0.0'  # Listen on all interfaces to receive from Muse-Lab
 PORT            = 12345
 
 

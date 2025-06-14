@@ -1,4 +1,4 @@
-from abc import abstractclassmethod
+from abc import abstractmethod
 import parameters as p
 import numpy as np
 import socket
@@ -40,6 +40,8 @@ class Receiver:
 
         self.softstate      = 'enabled' # For forcing/pausing stimulations
 
+        self.received_new_sample = False
+
 
     def prep_socket(self, ip, port):
         # Setup UDP protocol: connect to the UDP EEG streamer
@@ -57,12 +59,23 @@ class Receiver:
         self.server_thread = Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
+        print(f"OSC server listening on {ip}:{port} for /eeg messages")
 
 
-    def handle_eeg_message(self, address, *args): # TODO: This does not get called when turning into Muse's OSC streamer
-        # Handle incoming OSC message
-        # args[0] should contain the EEG data
-        self.current_eeg_data = np.array([args[0]]) * -1  # Keep the signal flipping logic
+    def handle_eeg_message(self, address, *args):
+        # Handle incoming OSC message from Muse headband
+        # Muse sends 4 EEG channels: TP9, AF7, AF8, TP10
+            
+        if len(args) >= 4:
+            # Take first 4 channels and pad with zeros to match NUM_CHANNELS
+            muse_data = list(args[:4])
+            # Pad with zeros to reach NUM_CHANNELS
+            while len(muse_data) < self.num_channels:
+                muse_data.append(0.0)
+            self.current_eeg_data = np.array([muse_data])
+            self.received_new_sample = True
+        else:
+            print(f"Warning: Received {len(args)} EEG values, expected at least 4")
 
         
     def prep_buffer(self, num_channels, length):
@@ -86,11 +99,11 @@ class Receiver:
         
     #     return eeg_data
 
-    def get_sample(self):
-        # Get eeg samples from the OSC stream
-        if self.current_eeg_data is not None:
-            return self.current_eeg_data
-        return np.zeros((1, self.num_channels))  # Return zeros if no data received yet
+    # def get_sample(self):
+    #     # Get eeg samples from the OSC stream
+    #     if self.current_eeg_data is not None:
+    #         return self.current_eeg_data
+    #     return np.zeros((1, self.num_channels))  # Return zeros if no data received yet
 
     def get_time_stamp(self):
         return round(time.perf_counter() * 1000 - self.start_time, 4)
@@ -100,8 +113,15 @@ class Receiver:
         # This functions fills the buffer in self.buffer
         # that later can be accesed to perfom the real time analysis
         while True:
+
+            if not self.received_new_sample:
+                time.sleep(0.001)  # Add a small delay to reduce CPU usage
+                continue
+            else:
+                self.received_new_sample = False
+
             # Get samples
-            sample      = self.get_sample()
+            sample      = self.current_eeg_data # self.get_sample()
             time_stamp  = self.get_time_stamp()
 
             # Transpose vector
@@ -125,7 +145,7 @@ class Receiver:
                 return
 
 
-    @abstractclassmethod
+    @abstractmethod
     def real_time_algorithm(self, buffer, time_stamps):
         # This method is overwritten on class Backend
         pass

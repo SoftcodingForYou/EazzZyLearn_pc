@@ -7,3 +7,4 @@ soundfile
 scipy
 matplotlib
 numpy
+python-osc
