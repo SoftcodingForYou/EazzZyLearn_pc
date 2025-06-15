@@ -1,16 +1,18 @@
 from backend.backend import Backend
-
-# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-# Main function to execute in order to run the code. It is important to 
-# quit the program using the built-in softstate method (hitting Q key).
-# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+from frontend.frontend import Frontend
+from PyQt5.QtWidgets import QApplication
+import sys
 
 def main():
     
-    backend = Backend() # Initializes all methods and starts receiver
+    app = QApplication(sys.argv)
+    processing_controller = Frontend()
+
+    backend = Backend(processing_controller) # Initializes all methods and starts receiver
     backend.real_time_algorithm(backend.buffer, backend.time_stamps)
 
-
+    processing_controller.show()
+    app.exec_()
 
 if __name__ == "__main__":
     main()

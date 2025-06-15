@@ -196,7 +196,7 @@ class SignalProcessing():
         idx_channel = int(number_pressed) - 1 # -1 for Python indexing
         if idx_channel != self.channel:
             self.channel = idx_channel
-            line = str(timestamp) + ', Switched channel to ' + number_pressed + ' (' + self.channels[self.channel] +')'
+            line = str(timestamp) + ', Switched channel to ' + str(number_pressed) + ' (' + self.channels[self.channel] +')'
             stimhistory = open(outputfile, 'a') # Appending
             stimhistory.write(line + '\n')
             stimhistory.close()

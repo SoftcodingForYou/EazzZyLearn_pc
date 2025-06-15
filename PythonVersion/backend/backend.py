@@ -5,8 +5,6 @@ from backend.sleep_wake_state           import SleepWakeState
 from backend.signal_processing          import SignalProcessing
 from backend.predict_slow_oscillation   import PredictSlowOscillation
 from threading                          import Thread
-import numpy                            as np
-import keyboard
 
 
 # Inherance of Receiver class is key here so that we call 
@@ -14,7 +12,7 @@ import keyboard
 # fill_buffer()
 class Backend(Receiver):
 
-    def __init__(self):
+    def __init__(self, gui):
         super().__init__()
 
         self.print_time_stamp = 0   # Prevent filling console output
@@ -24,6 +22,7 @@ class Backend(Receiver):
         self.Stg    = SleepWakeState()
         self.SgPrc  = SignalProcessing()
         self.Pdct   = PredictSlowOscillation()
+        self.gui    = gui
 
         # Start fading background music
         # background_sound, sampling = self.HndlDt.load_background_sound()
@@ -61,30 +60,30 @@ class Backend(Receiver):
 
         # Checkpoint of whether to proceed to stimulation or to step out
         # -----------------------------------------------------------------
-        # Soft interrupt (Comment out on GNU/Linux because of sudo request)
         # At this stage, we allow for code to be soft-paused or -forced: We
         # block or force stimulation manually
-        if any(keyboard.is_pressed(key) for key in ["p", "r", "f", "q"]):
-            key = keyboard.read_key()
-            self.define_stimulation_state(key, self.HndlDt.stim_path,
+        if self.gui.window_closed:
+            self.define_stimulation_state(2, self.HndlDt.stim_path,
                 current_time)
-        elif any(keyboard.is_pressed(key) for key in map(str, np.arange(1,self.num_channels+1))):
-            number = keyboard.read_key()
-            if "flecha" not in number:
-                self.SgPrc.switch_channel(number, self.HndlDt.stim_path, current_time)
+        elif self.gui.stimulation_state != self.softstate:
+            self.define_stimulation_state(self.gui.stimulation_state, self.HndlDt.stim_path,
+                current_time)
+        if self.SgPrc.channel != self.gui.processing_channel - 1:
+            self.SgPrc.switch_channel(self.gui.processing_channel, self.HndlDt.stim_path, 
+                current_time)
         
-        if self.softstate == 'paused':
+        if self.softstate == 0:
             if self.print_time_stamp + 1000 < current_time:
                 self.print_time_stamp = current_time
-                print('*** Stimulation paused: Ignoring slow oscillations...')
+                # print('*** Stimulation paused: Ignoring slow oscillations...')
             return
-        elif self.softstate != 'forced' and ( 
-            self.Stg.isawake == True or self.Stg.issws != True ):
+        elif self.softstate != -1 and ( 
+            self.Stg.isawake == True or self.Stg.issws == False ):
             return # Ignored if we want to force stimulations
-        elif self.softstate == 'forced' and ( self.print_time_stamp + 
+        elif self.softstate == -1 and ( self.print_time_stamp + 
             1000 < current_time ):
                 self.print_time_stamp = current_time
-                print('*** Stimulation forced: Ignoring stagings...')
+                # print('*** Stimulation forced: Ignoring stagings...')
 
 
         # Slow oscillation upstate prediction

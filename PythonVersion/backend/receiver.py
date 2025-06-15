@@ -38,7 +38,7 @@ class Receiver:
         self.buffer         = self.prep_buffer(self.num_channels, self.buffer_length)
         self.time_stamps    = self.prep_time_stamps(self.buffer_length)
 
-        self.softstate      = 'enabled' # For forcing/pausing stimulations
+        self.softstate      = 1
 
         self.received_new_sample = False
 
@@ -127,15 +127,12 @@ class Receiver:
             # Transpose vector
             sample = np.transpose(sample)
 
-            # Concatenate vector
-            update_buffer = np.concatenate((self.buffer, sample), axis=1)
-
             # save to new buffer
-            self.buffer = update_buffer[:, 1:]
+            self.buffer = np.concatenate((self.buffer[:, 1:], sample), axis=1)
 
             # Save time_stamp
-            self.time_stamps = np.append(self.time_stamps, time_stamp)
-            self.time_stamps = self.time_stamps[1:]
+            self.time_stamps[:-1] = self.time_stamps[1:]
+            self.time_stamps[-1] = time_stamp
 
             # real_time_algorithm
             self.real_time_algorithm(self.buffer, self.time_stamps)
@@ -182,43 +179,34 @@ class Receiver:
         #       ignoring the sleep/wake stage predictions
         # Q  =  Quitting program irreversibly (checkpoint before quitting) 
         # =================================================================
-        if key == "p" and self.softstate != 'paused':
-            self.softstate = 'paused'
+        if key == 0:
+            self.softstate = key
             line = str(timestamp) + ', Stimulation paused'
             stimhistory = open(outputfile, 'a') # Appending
             stimhistory.write(line + '\n')
             stimhistory.close()
-            print('*** Stimulation paused! Press R to resume ...')
-        elif key == "r" and self.softstate != 'enabled':
-            self.softstate = 'enabled'
+            print('*** Stimulation paused! ...')
+        elif key == 1:
+            self.softstate = key
             line = str(timestamp) + ', Stimulation enabled'
             stimhistory = open(outputfile, 'a') # Appending
             stimhistory.write(line + '\n')
             stimhistory.close()
             print('Stimulation resumed')
-        elif key == "f" and self.softstate != 'forced':
-            self.softstate = 'forced'
+        elif key == -1:
+            self.softstate = key
             line = str(timestamp) + ', Stimulation forced, sleep/wake stages are estimated but ignored'
             stimhistory = open(outputfile, 'a') # Appending
             stimhistory.write(line + '\n')
             stimhistory.close()
             print('Stimulation forced, ignoring sleep/wake staging')
-        elif key == "q":
-            rsp = input('*** Are you sure you want to quit the program? Y/N: ')
-            if rsp.lower() == 'yes' or rsp.lower() == 'y':
-                line = str(timestamp) + ', Program quit irreversibly'
-                stimhistory = open(outputfile, 'a') # Appending
-                stimhistory.write(line + '\n')
-                stimhistory.close()
-                print('Program quit entirely')
-                self.stop_receiver()
-            else:
-                line = str(timestamp) + ', Program almost exited. Resuming now...'
-                stimhistory = open(outputfile, 'a') # Appending
-                stimhistory.write(line + '\n')
-                stimhistory.close()
-                self.softstate = 'enabled'
-                print('Program was NOT quit, resuming stimulation')
+        elif key == 2:
+            line = str(timestamp) + ', Program quit irreversibly'
+            stimhistory = open(outputfile, 'a') # Appending
+            stimhistory.write(line + '\n')
+            stimhistory.close()
+            print('Program quit entirely')
+            self.stop_receiver()
 
 
 if __name__ == "__main__":
