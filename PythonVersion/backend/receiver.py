@@ -30,6 +30,10 @@ class Receiver:
         # Stop recording
         self.stop           = False
 
+        # Using Muse devices
+        self.use_muse_sleep_classifier = p.USE_MUSE_SLEEP_CLASSIFIER
+        self.current_muse_metrics = None
+
         # self.prep_socket(self.ip, self.port) # Connect to socket
         self.prep_osc_receiver(self.ip, self.port) # Connect to OSC receiver
         self.current_eeg_data = None
@@ -41,7 +45,7 @@ class Receiver:
         self.softstate      = 1
 
         self.received_new_sample = False
-
+        
 
     def prep_socket(self, ip, port):
         # Setup UDP protocol: connect to the UDP EEG streamer
@@ -53,13 +57,15 @@ class Receiver:
         # Setup OSC server to receive EEG data
         self.dispatcher = dispatcher.Dispatcher()
         self.dispatcher.map("/eeg", self.handle_eeg_message)  # Map OSC address to handler
-        
+        if self.use_muse_sleep_classifier:
+            self.dispatcher.map("/muse_metrics", self.handle_muse_metrics_message)
+
         # Create OSC server
         self.server = osc_server.ThreadingOSCUDPServer((ip, port), self.dispatcher)
         self.server_thread = Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
-        print(f"OSC server listening on {ip}:{port} for /eeg messages")
+        print(f"OSC server listening on {ip}:{port} for Muse OSC messages")
 
 
     def handle_eeg_message(self, address, *args):
@@ -72,10 +78,27 @@ class Receiver:
             # Pad with zeros to reach NUM_CHANNELS
             while len(muse_data) < self.num_channels:
                 muse_data.append(0.0)
-            self.current_eeg_data = np.array([muse_data])
+
+            new_eeg_data = np.array([muse_data])
+            # Loop through each element and handle NaN values
+            for i in range(new_eeg_data.shape[1]):
+                if np.isnan(new_eeg_data[0,i]):
+                    new_eeg_data[0,i] = self.current_eeg_data[0,i]
+            
+            self.current_eeg_data = new_eeg_data
             self.received_new_sample = True
         else:
             print(f"Warning: Received {len(args)} EEG values, expected at least 4")
+
+
+    def handle_muse_metrics_message(self, address, *args):
+        # Handle incoming OSC message from Muse headband
+        # Muse sends 4 EEG channels: TP9, AF7, AF8, TP10
+        muse_metrics = list(args)
+        if self.current_muse_metrics is None:
+            self.current_muse_metrics = np.zeros(len(muse_metrics))
+        for i in range(len(muse_metrics)):
+            self.current_muse_metrics[i] = muse_metrics[i]
 
         
     def prep_buffer(self, num_channels, length):

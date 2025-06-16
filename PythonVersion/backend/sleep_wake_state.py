@@ -18,6 +18,9 @@ class SleepWakeState():
         # - How often the staging is done (self.satging_interval)
         # Important parameters for timing of the staging process
         # =================================================================
+        self.use_muse_sleep_classifier  = p.USE_MUSE_SLEEP_CLASSIFIER
+        self.current_muse_metrics       = None
+        self.muse_metric_map            = p.MUSE_METRIC_MAP
         self.last_sleep_stage_time      = 0
         self.last_wake_stage_time       = 0
         self.sleep_staging_interval     = p.SLEEP_STAGE_INTERVAL * 1000
@@ -112,11 +115,7 @@ class SleepWakeState():
     def staging(self, v_wake, staging_what, freq_range, output_file,
         time_stamp):
 
-        # x_power, x_freqs    = self.power_spectr_multitaper(v_wake,
-        #     freq_range, self.sample_rate)
-        v_power, v_freqs    = self.power_spectr_welch(v_wake,
-            freq_range, self.sample_rate)
-
+        predictions             = {}
         # Get ratio thresholds of interest based on sleep or wake staging
         if staging_what == 'isawake':
             staging_ratios  = self.wake_thresholds
@@ -126,51 +125,71 @@ class SleepWakeState():
             line_base       = str(time_stamp) + ', Subject in SWS = '
         staging_ratios_keys = list(staging_ratios.keys())
 
-        # Get the stage prediction from different band ratios
-        predictions          = {}
-        for iRatio in range(len(staging_ratios_keys)):
-            
-            # Define paramaters (number/name of bands to compare, thresholds)
-            ratio_str       = staging_ratios_keys[iRatio]
-            ratio_thresold  = staging_ratios[ratio_str]
-            bands           = ratio_str.split("VS") # Has to generate a list
-        
-            predictions[ratio_str] = self.band_ratio_thresholding(v_power,
-                                v_freqs, bands, ratio_thresold)
+        if not self.use_muse_sleep_classifier:
+            v_power, v_freqs    = self.power_spectr_welch(v_wake,
+                freq_range, self.sample_rate)
 
-        # Take decision based on individual predictions and update workspace
-        indiv_predictions       = list(predictions.values())
-        if staging_what == 'isawake':
-            # if any(prediction == True for prediction in predictions.values()): # Seems too strict
-            # We take the average prediction as the final decision
-            if sum(indiv_predictions) >= len(indiv_predictions) / 2:
-                self.isawake    = True
-                line_add        = True
-            else:
-                self.isawake    = False
-                line_add        = False
-
-            # Check for false positive in awake staging because of movement 
-            # artifacts
-            # Update last awake stagings
-            self.prior_awake    = np.append(self.prior_awake, self.isawake)
-            self.prior_awake    = np.delete(self.prior_awake, 0)
-            # Get overall staging value: If >= 50% predicted awake = True,
-            # then we lock current stage into being awake
-            if ( np.sum(self.prior_awake) >= self.prior_awake.size / 2 and
-                self.isawake == False ):
-                self.isawake    = True
-                line_add        = str(line_add) + ' (False negative)'
+            # Get the stage prediction from different band ratios
+            for iRatio in range(len(staging_ratios_keys)):
                 
-        elif staging_what == 'issws':
-            # We take the average prediction as the final decision
-            if sum(indiv_predictions) >= len(indiv_predictions) / 2:
-            # if any(prediction == True for prediction in predictions.values()): # False positives with old values
-                self.issws      = True
-                line_add        = True
+                # Define paramaters (number/name of bands to compare, thresholds)
+                ratio_str       = staging_ratios_keys[iRatio]
+                ratio_thresold  = staging_ratios[ratio_str]
+                bands           = ratio_str.split("VS") # Has to generate a list
+            
+                predictions[ratio_str] = self.band_ratio_thresholding(v_power,
+                                    v_freqs, bands, ratio_thresold)
+
+            # Take decision based on individual predictions and update workspace
+            indiv_predictions       = list(predictions.values())
+            if staging_what == 'isawake':
+                # if any(prediction == True for prediction in predictions.values()): # Seems too strict
+                # We take the average prediction as the final decision
+                if sum(indiv_predictions) >= len(indiv_predictions) / 2:
+                    self.isawake    = True
+                    line_add        = True
+                else:
+                    self.isawake    = False
+                    line_add        = False
+
+                # Check for false positive in awake staging because of movement 
+                # artifacts
+                # Update last awake stagings
+                self.prior_awake    = np.append(self.prior_awake, self.isawake)
+                self.prior_awake    = np.delete(self.prior_awake, 0)
+                # Get overall staging value: If >= 50% predicted awake = True,
+                # then we lock current stage into being awake
+                if ( np.sum(self.prior_awake) >= self.prior_awake.size / 2 and
+                    self.isawake == False ):
+                    self.isawake    = True
+                    line_add        = str(line_add) + ' (False negative)'
+                    
+            elif staging_what == 'issws':
+                # We take the average prediction as the final decision
+                if sum(indiv_predictions) >= len(indiv_predictions) / 2:
+                # if any(prediction == True for prediction in predictions.values()): # False positives with old values
+                    self.issws      = True
+                    line_add        = True
+                else:
+                    self.issws      = False
+                    line_add        = False
+        else:
+            for key, value in self.muse_metric_map.items():
+                predictions[key] = self.current_muse_metrics[value]
+            if staging_what == 'issws':
+                if predictions["Wake"] >= predictions["N3"]:
+                    self.issws = False
+                    line_add = False
+                else:
+                    self.issws = True
+                    line_add = True
             else:
-                self.issws      = False
-                line_add        = False
+                if predictions["Wake"] >= predictions["N3"]:
+                    self.isawake = True
+                    line_add = True
+                else:
+                    self.isawake = False
+                    line_add = False
 
         # Store staging on disk
         # -----------------------------------------------------------------

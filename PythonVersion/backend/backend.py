@@ -53,6 +53,8 @@ class Backend(Receiver):
 
         # Sleep and wake staging
         # -----------------------------------------------------------------
+        if self.use_muse_sleep_classifier:
+            self.Stg.current_muse_metrics = self.current_muse_metrics
         self.Stg.master_stage_wake_and_sleep(v_wake, v_sleep,
             self.SgPrc.freq_range_whole, self.HndlDt.stage_path,
             current_time)

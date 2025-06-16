@@ -127,6 +127,18 @@ LOCKING_LENGTH          = 120   # scalar (s) If during the LOCKING_LENGTH
                                 # Awake to False and SWS to True
 
 
+# Muse Sleep Classifier Configuration
+# -------------------------------------------------------------------------
+USE_MUSE_SLEEP_CLASSIFIER = True
+MUSE_METRIC_MAP = {
+    "Wake": 12,
+    "N1":   13,
+    "N2":   14,
+    "N3":   15,
+    "REM":  16
+}
+
+
 # Filter parameters
 # -------------------------------------------------------------------------
 

@@ -21,7 +21,7 @@ class Frontend(QMainWindow):
             self.channel_combo.addItem(option_list[i])
         
         # Create buttons
-        self.start_button = QPushButton("Enabled")
+        self.start_button = QPushButton("Enable")
         self.force_button = QPushButton("Force")
         self.stop_button = QPushButton("Pause")
 
@@ -103,7 +103,7 @@ class Frontend(QMainWindow):
     def start_stimulation(self):
         if self.stimulation_state == 1:
             return
-        print("Enable Stimulation")
+        print("Enabling Stimulation")
         self.stimulation_state = 1
         self.start_button.setProperty("active", True)
         self.force_button.setProperty("active", False)
@@ -113,7 +113,7 @@ class Frontend(QMainWindow):
     def force_stimulation(self):
         if self.stimulation_state == -1:
             return
-        print("Force stimulation")
+        print("Forcing stimulation")
         self.stimulation_state = -1
         self.start_button.setProperty("active", False)
         self.force_button.setProperty("active", True)
@@ -123,7 +123,7 @@ class Frontend(QMainWindow):
     def pause_stimulation(self):
         if self.stimulation_state == 0:
             return
-        print("Paused stimulation")
+        print("Pausing stimulation")
         self.stimulation_state = 0
         self.start_button.setProperty("active", False)
         self.force_button.setProperty("active", False)

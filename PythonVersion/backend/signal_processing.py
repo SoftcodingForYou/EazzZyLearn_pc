@@ -121,14 +121,6 @@ class SignalProcessing():
         # Linear phase filters are suitable for online uses but introuce 
         # time delays.
         # =================================================================
-        mask = np.isnan(signal)
-        if np.any(mask):
-            signal = np.interp(
-                np.arange(len(signal)),
-                np.arange(len(signal))[~mask],
-                signal[~mask]
-            )
-            
         padded_signal   = np.pad(signal, (self.padlen, 0), 'symmetric')
         signal_filtered = scipy.signal.lfilter(b, a, padded_signal)
         signal_filtered = signal_filtered[self.padlen+1:]
