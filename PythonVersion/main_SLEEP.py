@@ -9,7 +9,6 @@ def main():
     processing_controller = Frontend()
 
     backend = Backend(processing_controller) # Initializes all methods and starts receiver
-    backend.real_time_algorithm(backend.buffer, backend.time_stamps)
 
     processing_controller.show()
     app.exec_()
