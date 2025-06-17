@@ -30,6 +30,7 @@ class Backend(Receiver):
 
         # Start infinite call to real_time_algorithm()
         self.start_receiver(self.HndlDt.output_dir, self.HndlDt.subject_info)
+        self.gui.update_status_text("Waiting for data stream ...")
 
 
     def real_time_algorithm(self, buffer, timestamps):
@@ -40,6 +41,10 @@ class Backend(Receiver):
         # =================================================================
 
         current_time = timestamps[-1] # Used at multiple occasions
+        if current_time <= 0.0:
+            return # First iteration at code init
+        elif not self.gui.window_closed:
+            self.gui.update_status_text(f"Last samples received: {round(current_time)}")
 
         # Save raw data periodically (periods checked inside method)
         # -----------------------------------------------------------------

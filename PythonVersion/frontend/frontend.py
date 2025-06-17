@@ -1,12 +1,22 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QComboBox, QLabel
+from PyQt5.QtGui import QIcon
 import sys
 import parameters as p
+import os
+from PyQt5.QtCore import Qt
 
 class Frontend(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("EazzZyLearn Control Interface")
-        self.setGeometry(100, 100, 350, 100)
+        self.setWindowTitle("Muse Deep Sleep Stimulation")
+        self.setGeometry(100, 100, 350, 200)
+        self.setFixedSize(350, 200)  # Lock window size
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)  # Remove maximize button
+
+        # Set window icon
+        icon_path = os.path.join(os.path.dirname(__file__), 'assets', 'icon.png')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # Create central widget and layout
         central_widget = QWidget()
@@ -24,6 +34,16 @@ class Frontend(QMainWindow):
         self.start_button = QPushButton("Enable")
         self.force_button = QPushButton("Force")
         self.stop_button = QPushButton("Pause")
+        
+        # Create status label
+        self.status_label = QLabel("Initializing ...")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #333333;
+                font-size: 12px;
+                padding: 5px;
+            }
+        """)
 
         # Add widgets to layout
         layout.addWidget(channel_label)
@@ -31,6 +51,7 @@ class Frontend(QMainWindow):
         layout.addWidget(self.start_button)
         layout.addWidget(self.force_button)
         layout.addWidget(self.stop_button)
+        layout.addWidget(self.status_label)
 
         # Connect button signals
         self.start_button.clicked.connect(self.start_stimulation)
@@ -133,6 +154,10 @@ class Frontend(QMainWindow):
     def channel_changed(self, value):
         value = str(value)
         self.processing_channel = int(value[:value.find(':')])
+
+    def update_status_text(self, text):
+        """Update the status label text"""
+        self.status_label.setText(f"{text}")
 
 def main():
     app = QApplication(sys.argv)

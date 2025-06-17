@@ -173,7 +173,7 @@ class SleepWakeState():
                 else:
                     self.issws      = False
                     line_add        = False
-        else:
+        elif self.current_muse_metrics is not None:
             for key, value in self.muse_metric_map.items():
                 predictions[key] = self.current_muse_metrics[value]
             if staging_what == 'issws':
@@ -190,6 +190,8 @@ class SleepWakeState():
                 else:
                     self.isawake = False
                     line_add = False
+        else:
+            return
 
         # Store staging on disk
         # -----------------------------------------------------------------

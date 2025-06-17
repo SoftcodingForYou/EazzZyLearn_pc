@@ -80,6 +80,8 @@ class Receiver:
                 muse_data.append(0.0)
 
             new_eeg_data = np.array([muse_data])
+            if self.current_eeg_data is None:
+                self.current_eeg_data = new_eeg_data
             # Loop through each element and handle NaN values
             for i in range(new_eeg_data.shape[1]):
                 if np.isnan(new_eeg_data[0,i]):
