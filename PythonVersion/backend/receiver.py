@@ -131,7 +131,8 @@ class Receiver:
     #     return np.zeros((1, self.num_channels))  # Return zeros if no data received yet
 
     def get_time_stamp(self):
-        return round(time.perf_counter() * 1000 - self.start_time, 4)
+        # return round(time.perf_counter() * 1000 - self.start_time, 4)
+        return round(time.time_ns() / 1000000, 4)
 
 
     def fill_buffer(self):
