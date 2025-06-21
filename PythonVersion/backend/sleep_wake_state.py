@@ -195,8 +195,22 @@ class SleepWakeState():
 
         # Store staging on disk
         # -----------------------------------------------------------------
+        predictions = self._convert_numpy_values(predictions)
         line = line_base + str(line_add) + ' ' + str(predictions)
         self.stage_write(line, output_file)
+
+
+    def _convert_numpy_values(self, predictions):
+        """Convert numpy values in predictions dict to native Python types"""
+        converted = {}
+        for key, value in predictions.items():
+            if hasattr(value, 'item'):  # numpy scalar
+                converted[key] = value.item()
+            elif isinstance(value, np.ndarray):  # numpy array
+                converted[key] = value.tolist()
+            else:
+                converted[key] = value
+        return converted
 
 
     def band_ratio_thresholding(self, power, freqs, bands, threshold_val):
