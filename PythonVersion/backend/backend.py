@@ -41,9 +41,7 @@ class Backend(Receiver):
         # =================================================================
 
         current_time = timestamps[-1] # Used at multiple occasions
-        if current_time <= 0.0:
-            return # First iteration at code init
-        elif not self.gui.window_closed:
+        if not self.gui.window_closed:
             self.gui.update_status_text(f"Last samples received: {round(current_time)}")
 
         # Save raw data periodically (periods checked inside method)
