@@ -132,9 +132,8 @@ class PredictSlowOscillation:
         # Note here that only when calling close(), the information gets
         # indeed written into the file.
         # =================================================================
-        self.predhistory = open(output_file, 'a') # Appending
-        self.predhistory.write(line + '\n')
-        self.predhistory.close()
+        with open(output_file, 'a') as f: # Appending
+            f.write(line + '\n')
 
 
     def predicted_SO_write_thread(self, line, output_file):

@@ -4,6 +4,7 @@ import json
 import soundfile as sf
 from threading import Thread
 import parameters as p
+import numpy as np
 
 class HandleData():
 
@@ -164,25 +165,19 @@ class HandleData():
         
         
     def write_data_thread(self, eeg_data, time_stamps, output_file):
-
         # checklist
         assert time_stamps.shape[0] == eeg_data.shape[1], "Problem with buffer length"
 
-        # Append the data points to the end of the file
-        with open(output_file, 'a', encoding=self.encoding) as file:
-            buffer_length = time_stamps.shape[0]
-
-            for sample_index in range(buffer_length):
-                # Format time stamp
-                time_stamp = time_stamps[sample_index]
-                # format eeg data
-                eeg_data_points = eeg_data[:,sample_index].tolist()
-                eeg_data_points = [str(value) for value in eeg_data_points]
-                eeg_data_points = ",".join(eeg_data_points)     
-            
-                # Write line to file
-                file.write(f"{time_stamp}, {eeg_data_points} \n")
-            file.close() # Important for data to get written
+        # Convert everything to string format efficiently
+        buffer_length = time_stamps.shape[0]
+        
+        # Use numpy's savetxt for maximum performance
+        # Reshape data to combine timestamps and EEG data
+        combined_data = np.column_stack([time_stamps, eeg_data.T])
+        
+        # Append to file using numpy's efficient I/O
+        with open(output_file, 'a', encoding=self.encoding) as f:
+            np.savetxt(f, combined_data, delimiter=', ', fmt='%s', newline='\n')
 
 
     def prep_cue_dir(self):

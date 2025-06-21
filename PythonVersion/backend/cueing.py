@@ -40,9 +40,8 @@ class Cueing:
 
 
     def cue_write(self, line, output_file):
-        self.stimhistory = open(output_file, 'a')
-        self.stimhistory.write(line + '\n')
-        self.stimhistory.close()
+        with open(output_file, 'a') as f: # Appending
+            f.write(line + '\n')
         print(line)
 
 

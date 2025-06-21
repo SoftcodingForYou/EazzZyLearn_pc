@@ -265,9 +265,8 @@ class SleepWakeState():
         # Note here that only when calling close(), the information gets
         # indeed written into the file.
         # =================================================================
-        self.stimhistory = open(output_file, 'a') # Appending
-        self.stimhistory.write(line + '\n')
-        self.stimhistory.close()
+        with open(output_file, 'a') as f: # Appending
+            f.write(line + '\n')
         print(line[0:line.find(' {')]) # For us to follow
 
 
