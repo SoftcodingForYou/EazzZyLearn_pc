@@ -241,9 +241,3 @@ class Receiver:
             stimhistory.close()
             print('Program quit entirely')
             self.stop_receiver()
-
-
-if __name__ == "__main__":
-    import os; os.system('clear')
-    receiver = Receiver()
-    receiver.start_receiver()

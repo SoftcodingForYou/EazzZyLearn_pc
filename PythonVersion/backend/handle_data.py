@@ -67,12 +67,13 @@ class HandleData():
         # -----------------------------------------------------------------
         self.sample_count       = 0
         self.saving_interval    = p.DATA_SAVE_INTERVAL
+        self.samples_in_buffer  = p.MAIN_BUFFER_LENGTH
 
         # Background sound
         self.background_sound   = p.SUBJECT_INFO["background"]
         self.sound_format       = p.SOUND_FORMAT
 
-        self.disk_io            = DiskIO(p.MAX_BUFFERED_LINES*5, p.DATA_FLUSH_INTERVAL)
+        self.disk_io            = DiskIO(p.MAIN_BUFFER_LENGTH, p.DATA_FLUSH_INTERVAL)
 
 
     def load_background_sound(self):
@@ -153,21 +154,13 @@ class HandleData():
         # thread that will save the EEG data chunk on disk
         # =================================================================
         self.sample_count   = self.sample_count + 1
-        if self.sample_count < self.sample_rate * self.saving_interval:
+        if self.sample_count < self.samples_in_buffer:
             return # too early
-        elif self.sample_count > self.sample_rate * self.saving_interval:
-            raise Exception('Wrong number of buffer fetches')
-
-        new_buffer          = eeg_data[:, -self.saving_interval * self.sample_rate:]
-        new_time_stamps     = time_stamps[-self.saving_interval * self.sample_rate:]
         self.sample_count   = 0 # Important: reset outside of thread
-
-        # checklist
-        assert new_time_stamps.shape[0] == new_buffer.shape[1], "Problem with buffer length"
         
         # Use numpy's savetxt for maximum performance
         # Reshape data to combine timestamps and EEG data
-        combined_data = np.column_stack([new_time_stamps, new_buffer.T])
+        combined_data = np.column_stack([time_stamps, eeg_data.T])
         data_string = '\n'.join([', '.join(map(str, row)) for row in combined_data])
 
         self.disk_io.line_store(data_string, output_file)

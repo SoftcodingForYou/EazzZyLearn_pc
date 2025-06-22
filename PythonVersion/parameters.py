@@ -199,7 +199,7 @@ WAKE_THRESHOLDS = {
 # -------------------------------------------------------------------------
 
 MAX_BUFFERED_LINES = 1000 # int
-DATA_FLUSH_INTERVAL = 10 # seconds (float)
+DATA_FLUSH_INTERVAL = 30 # seconds (float)
 PREDICTION_FLUSH_INTERVAL = 5 # seconds (float)
 STIM_FLUSH_INTERVAL = 2 # seconds (float)
 STAGE_FLUSH_INTERVAL = 5 # seconds (float)

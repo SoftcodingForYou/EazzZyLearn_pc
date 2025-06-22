@@ -60,5 +60,9 @@ if __name__ == "__main__":
     sd.play(studysound, soundsampling, blocking = False, loop = True)
 
     print('Started background ambiance. Happy studying!')
-    input('Write [c] and press enter to exit program (Study session finished?): ')
+    is_running = True
+    while is_running:
+        answer = input('Write [c] and press enter to exit program (Study session finished?): ')
+        if answer == 'c':
+            is_running = False
     print('You terminated your study session. Program stopped')

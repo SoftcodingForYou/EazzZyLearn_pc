@@ -136,23 +136,3 @@ class Backend(Receiver):
             stim_thread.start()
 
         # print(self.get_time_stamp() - current_time) # Evaluate code speed
-
-        
-
-
-
-if __name__ == '__main__':
-    import os; os.system('clear')
-    backend = Backend()
-    
-    # Subject info
-    subject_info = {
-        'name': 'Carlos',
-        'age': 26,
-        'sex': 'Male',
-        'head_measure': 59,
-        'sample_rate': 200
-    }
-    output_dir = ''  # current folder
-
-    backend.start(output_dir, subject_info)
