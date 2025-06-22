@@ -141,6 +141,14 @@ class Receiver:
         while True:
 
             if not self.received_new_sample:
+                if hasattr(self, 'gui') and self.gui.window_closed:
+                    self.HndlDt.disk_io.close_files()
+                    self.Stg.disk_io.close_files()
+                    self.Pdct.disk_io.close_files()
+                    self.Cng.disk_io.close_files()
+                    self.define_stimulation_state(2, self.HndlDt.stim_path, self.get_time_stamp())
+                    return
+                
                 time.sleep(0.001)  # Add a small delay to reduce CPU usage
                 continue
             else:
