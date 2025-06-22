@@ -1,10 +1,11 @@
 import os
-from datetime import datetime
 import json
-import soundfile as sf
-from threading import Thread
-import parameters as p
-import numpy as np
+from datetime           import datetime
+import soundfile        as sf
+import numpy            as np
+import parameters       as p
+from backend.disk_io    import DiskIO
+
 
 class HandleData():
 
@@ -70,6 +71,8 @@ class HandleData():
         # Background sound
         self.background_sound   = p.SUBJECT_INFO["background"]
         self.sound_format       = p.SOUND_FORMAT
+
+        self.disk_io            = DiskIO(p.MAX_BUFFERED_LINES*5, p.DATA_FLUSH_INTERVAL)
 
 
     def load_background_sound(self):
@@ -158,26 +161,16 @@ class HandleData():
         new_buffer          = eeg_data[:, -self.saving_interval * self.sample_rate:]
         new_time_stamps     = time_stamps[-self.saving_interval * self.sample_rate:]
         self.sample_count   = 0 # Important: reset outside of thread
-        
-        save_thread = Thread(target=self.write_data_thread,
-            args=(new_buffer, new_time_stamps, output_file))
-        save_thread.start()
-        
-        
-    def write_data_thread(self, eeg_data, time_stamps, output_file):
-        # checklist
-        assert time_stamps.shape[0] == eeg_data.shape[1], "Problem with buffer length"
 
-        # Convert everything to string format efficiently
-        buffer_length = time_stamps.shape[0]
+        # checklist
+        assert new_time_stamps.shape[0] == new_buffer.shape[1], "Problem with buffer length"
         
         # Use numpy's savetxt for maximum performance
         # Reshape data to combine timestamps and EEG data
-        combined_data = np.column_stack([time_stamps, eeg_data.T])
-        
-        # Append to file using numpy's efficient I/O
-        with open(output_file, 'a', encoding=self.encoding) as f:
-            np.savetxt(f, combined_data, delimiter=', ', fmt='%s', newline='\n')
+        combined_data = np.column_stack([new_time_stamps, new_buffer.T])
+        data_string = '\n'.join([', '.join(map(str, row)) for row in combined_data])
+
+        self.disk_io.line_store(data_string, output_file)
 
 
     def prep_cue_dir(self):

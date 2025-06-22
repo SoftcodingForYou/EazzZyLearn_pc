@@ -1,6 +1,6 @@
 import scipy.signal
-import numpy as np
-import parameters as p
+import numpy            as np
+import parameters       as p
 
 
 class SignalProcessing():

@@ -1,8 +1,9 @@
 # Collection of methods associated with memory cueing.
-import parameters as p
-import sounddevice as sd
-import numpy as np
+import sounddevice      as sd
+import numpy            as np
 sd.default.latency = 'low' # Crucial to reduce onset latency of cues
+import parameters       as p
+from backend.disk_io    import DiskIO
 
 
 class Cueing:
@@ -22,6 +23,8 @@ class Cueing:
         self.stim_time          = 0 # Last stimulation time stamp (Used to respect refractory periods)
         self.s_stim             = 0 # Keep count of stimulations (scalar)
 
+        self.disk_io            = DiskIO(p.MAX_BUFFERED_LINES, p.STIM_FLUSH_INTERVAL)
+
 
     def start_fading_sound(self, sound, soundsampling):
         # Fade sound array
@@ -39,12 +42,6 @@ class Cueing:
         # sd.wait() # Stops python interpreter until sound played entirely
 
 
-    def cue_write(self, line, output_file):
-        with open(output_file, 'a') as f: # Appending
-            f.write(line + '\n')
-        print(line)
-
-
     def master_cue_stimulate(self, cue, cue_array, cue_sampling_rate, 
         cue_dir, output_file, current_time):
         # =================================================================
@@ -56,7 +53,7 @@ class Cueing:
 
         # Store the stimulation time and cue
         line = str(current_time) + ', ' + cue + ' ' + cue_dir
-        self.cue_write(line, output_file)
+        self.disk_io.line_store(line, output_file)
 
         # Post-stimulation cleanup
         # -----------------------------------------------------------------

@@ -1,11 +1,7 @@
-from datetime                           import datetime
-dt = datetime.now()
-formatted_time = dt.strftime("%Y-%m-%d-%H-%M-%S")
-
 # Recording session information (to be set for each participant)
 # -------------------------------------------------------------------------
 
-OUTPUT_DIR      = f'./EazzZyLearn_output/{formatted_time}'
+OUTPUT_DIR      = f'./EazzZyLearn_output/YYYY_mm_dd'
 
 SUBJECT_INFO    = {
     'name':         'Generic', # string (freely choses)
@@ -199,7 +195,12 @@ WAKE_THRESHOLDS = {
 # * quality: (o), false negatives; (+), good; (++), perfect 
 
 
-# Output file information
+# Output file management
 # -------------------------------------------------------------------------
 
+MAX_BUFFERED_LINES = 1000 # int
+DATA_FLUSH_INTERVAL = 10 # seconds (float)
+PREDICTION_FLUSH_INTERVAL = 5 # seconds (float)
+STIM_FLUSH_INTERVAL = 2 # seconds (float)
+STAGE_FLUSH_INTERVAL = 5 # seconds (float)
 ENCODING = 'utf-8'

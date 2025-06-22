@@ -1,10 +1,8 @@
-import numpy as np
+import numpy            as np
 import scipy
 import scipy.signal
-import parameters as p
-import numpy as np
-from threading import Thread
-
+import parameters       as p
+from backend.disk_io    import DiskIO
 
 
 class PredictSlowOscillation:
@@ -26,6 +24,8 @@ class PredictSlowOscillation:
         self.sd_multi               = p.SD_MULTIPLICATOR
 
         self.throw_multi            = p.THROW_MULTIPLICATION
+
+        self.disk_io                = DiskIO(p.MAX_BUFFERED_LINES, p.PREDICTION_FLUSH_INTERVAL)
 
 
     def set_threshold(self, threshold_array):
@@ -126,20 +126,6 @@ class PredictSlowOscillation:
         return downstate_timestamp
 
 
-    def predicted_SO_write(self, line, output_file):
-        # =================================================================
-        # Store on disk the information about predicted SO upstate times.
-        # Note here that only when calling close(), the information gets
-        # indeed written into the file.
-        # =================================================================
-        with open(output_file, 'a') as f: # Appending
-            f.write(line + '\n')
-
-
-    def predicted_SO_write_thread(self, line, output_file):
-        self.predicted_SO_write(line, output_file)
-
-
     def master_slow_osc_prediction(self, uncut_delta, delta, slowdelta, 
         length_threshold, sample_rate, current_time, cue_duration, 
         predicted_SO_path):
@@ -182,7 +168,4 @@ class PredictSlowOscillation:
 
             # We store the upstate time stamp (non-corrected!)
             line = str(downstate_time) + ', Predicted upstate at ' + str(stim_at_stamp)
-            self.pred_thread = Thread(name='write_prediction_thread',
-                target=self.predicted_SO_write_thread, 
-                args=(line, predicted_SO_path))
-            self.pred_thread.start()
+            self.disk_io.line_store(line, predicted_SO_path)

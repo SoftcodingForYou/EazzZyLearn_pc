@@ -44,7 +44,7 @@ class Backend(Receiver):
         current_time = timestamps[-1] # Used at multiple occasions
         if not self.gui.window_closed:
             dt = datetime.fromtimestamp(current_time/1000) # Needs to be seconds
-            formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+            formatted_time = dt.strftime("%H:%M:%S")
             self.gui.update_status_text(f"Last samples received: {formatted_time}")
 
         # Save raw data periodically (periods checked inside method)
@@ -71,6 +71,10 @@ class Backend(Receiver):
         # At this stage, we allow for code to be soft-paused or -forced: We
         # block or force stimulation manually
         if self.gui.window_closed:
+            self.HndlDt.disk_io.close_files()
+            self.Stg.disk_io.close_files()
+            self.Pdct.disk_io.close_files()
+            self.Cng.disk_io.close_files()
             self.define_stimulation_state(2, self.HndlDt.stim_path,
                 current_time)
         elif self.gui.stimulation_state != self.softstate:

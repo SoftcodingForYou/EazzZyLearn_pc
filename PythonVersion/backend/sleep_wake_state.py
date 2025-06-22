@@ -1,8 +1,7 @@
-import numpy as np
-import parameters as p
-from threading import Thread
-import time
+import numpy            as np
 import scipy
+import parameters       as p
+from backend.disk_io    import DiskIO
 
 class SleepWakeState():
 
@@ -35,9 +34,8 @@ class SleepWakeState():
         self.frequency_bands            = p.FREQUENCY_BANDS
         self.sleep_thresholds           = p.SLEEP_THRESHOLDS
         self.wake_thresholds            = p.WAKE_THRESHOLDS
-         # This is neccesary to use is_alive() method
-        self.sleep_thread               = Thread() 
-        self.wake_thread                = Thread()
+
+        self.disk_io                    = DiskIO(p.MAX_BUFFERED_LINES, p.STAGE_FLUSH_INTERVAL)
 
 
     def master_stage_wake_and_sleep(self, v_wake, v_sleep, freq_range, 
@@ -73,43 +71,11 @@ class SleepWakeState():
             self.last_sleep_stage_time  = time_stamp
             run_sleep_staging           = True
 
-        # Wake Thread
         if run_wake_staging == True:
-            if not self.wake_thread.is_alive(): # If it is not alive, create a new one
-                self.wake_thread = Thread(name='stage_wake_thread',
-                    target=self.stage_wake_thread, 
-                    args=(v_wake, freq_range, output_file, time_stamp))
-                self.wake_thread.start()
-            else:
-                print('Skipped wake staging: Wake thread still active')
+            self.staging(v_wake, 'isawake', freq_range, output_file, time_stamp)
 
-        # Sleep Thread
         if run_sleep_staging == True:
-            if not self.sleep_thread.is_alive(): # If it is not alive, create a new one
-                self.sleep_thread = Thread(name='stage_sleep_thread',
-                    target=self.stage_sleep_thread, 
-                    args=(v_sleep, freq_range, output_file, time_stamp))
-                self.sleep_thread.start()
-            else:
-                print('Skipped sleep staging: Sleep thread still active')
-
-
-    def stage_wake_thread(self, v_wake, freq_range, output_file, time_stamp):
-        # =================================================================
-        # Call wake staging methods. The sleep timer after the computations
-        # is what prevent sthe code from breaking (specifically during 
-        # sleep staging).
-        # =================================================================
-        self.staging(v_wake, 'isawake', freq_range, output_file, time_stamp)
-
-
-    def stage_sleep_thread(self, v_sleep, freq_range, output_file, time_stamp):
-        # =================================================================
-        # Call sleep staging methods. The sleep timer after the 
-        # computations is what prevent sthe code from breaking 
-        # (specifically during sleep staging).
-        # =================================================================
-        self.staging(v_sleep, 'issws', freq_range, output_file, time_stamp)
+            self.staging(v_wake, 'issws', freq_range, output_file, time_stamp)
 
 
     def staging(self, v_wake, staging_what, freq_range, output_file,
@@ -200,7 +166,7 @@ class SleepWakeState():
         # -----------------------------------------------------------------
         predictions = self._convert_numpy_values(predictions)
         line = line_base + str(line_add) + ' ' + str(predictions)
-        self.stage_write(line, output_file)
+        self.disk_io.line_store(line, output_file)
 
 
     def _convert_numpy_values(self, predictions):
@@ -241,7 +207,7 @@ class SleepWakeState():
             
             low                 = np.where(freqs < passband[1])[0]
             high                = np.where(freqs > passband[0])[0]
-            f_pass              = np.in1d(high, low)
+            f_pass              = np.isin(high, low)
             overlap             = high[np.where(f_pass == True)[0]]
             
             band_power          = np.mean(power[overlap])
@@ -259,7 +225,7 @@ class SleepWakeState():
                 
                 low             = np.where(freqs < passband[1])[0]
                 high            = np.where(freqs > passband[0])[0]
-                f_pass          = np.in1d(high, low)
+                f_pass          = np.isin(high, low)
                 overlap         = high[np.where(f_pass == True)[0]]
                 
                 band_power[iBand]= np.mean(power[overlap])
@@ -276,17 +242,6 @@ class SleepWakeState():
         return prediction
 
 
-    def stage_write(self, line, output_file):
-        # =================================================================
-        # Store on disk the stage information
-        # Note here that only when calling close(), the information gets
-        # indeed written into the file.
-        # =================================================================
-        with open(output_file, 'a') as f: # Appending
-            f.write(line + '\n')
-        print(line[0:line.find(' {')]) # For us to follow
-
-
     def power_spectr_welch(self, whole_range_signal, freq_range, sample_rate):
 
         win = 4 * sample_rate # Lowest frequency of interest = 0.5 --> 2x low signal in window is optimal
@@ -296,7 +251,7 @@ class SleepWakeState():
         Fpass           = (freq_range[0], freq_range[1])
         f_highpass      = np.where(freqs >= Fpass[0])[0]
         f_lowpass       = np.where(freqs <= Fpass[-1])[0]
-        f_passband      = np.in1d(f_highpass, f_lowpass)
+        f_passband      = np.isin(f_highpass, f_lowpass)
         findx           = f_highpass[np.where(f_passband == True)[0]]
         
         power           = power[findx]
