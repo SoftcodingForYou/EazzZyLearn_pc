@@ -176,20 +176,23 @@ class SleepWakeState():
         elif self.current_muse_metrics is not None:
             for key, value in self.muse_metric_map.items():
                 predictions[key] = self.current_muse_metrics[value]
+
+            is_unknown = len([val for val in predictions.values() if val != 0]) == 0 # Unknown when all stages are zeros
+            max_key = max(predictions, key=predictions.get)
             if staging_what == 'issws':
-                if predictions["Wake"] >= predictions["N3"]:
+                if is_unknown or max_key != 'N3':
                     self.issws = False
                     line_add = False
                 else:
                     self.issws = True
                     line_add = True
-            else:
-                if predictions["Wake"] >= predictions["N3"]:
-                    self.isawake = True
-                    line_add = True
-                else:
+            elif staging_what == 'isawake':
+                if is_unknown or max_key != 'Wake':
                     self.isawake = False
                     line_add = False
+                else:
+                    self.isawake = True
+                    line_add = True
         else:
             return
 
