@@ -1,15 +1,19 @@
+from datetime                           import datetime
+dt = datetime.now()
+formatted_time = dt.strftime("%Y-%m-%d-%H-%M-%S")
+
 # Recording session information (to be set for each participant)
 # -------------------------------------------------------------------------
 
-OUTPUT_DIR      = './EazzZyLearn_output'
+OUTPUT_DIR      = f'./EazzZyLearn_output/{formatted_time}'
 
 SUBJECT_INFO    = {
-    'name':         'Generic',                          # string (freely choses)
-    'age':          '00',                          # scalar (years)
-    'sex':          'Female',                          # Male or Female
+    'name':         'Generic', # string (freely choses)
+    'age':          '00', # scalar (years)
+    'sex':          'Female', # Male or Female
     'chosencue':    'gong',   # Sound to present during sleep
-    'background':   'Meditative_Mind_P1F9MiPr2Vs_short',        # Background sound to avoid silent intervals
-    'cueinterval':  '1',                                # float (minutes)
+    'background':   'Meditative_Mind_P1F9MiPr2Vs_short', # Background sound to avoid silent intervals
+    'cueinterval':  '1', # str (float-like: minutes)
     }
 
 

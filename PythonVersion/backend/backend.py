@@ -5,6 +5,7 @@ from backend.sleep_wake_state           import SleepWakeState
 from backend.signal_processing          import SignalProcessing
 from backend.predict_slow_oscillation   import PredictSlowOscillation
 from threading                          import Thread
+from datetime                           import datetime
 
 
 # Inherance of Receiver class is key here so that we call 
@@ -42,7 +43,9 @@ class Backend(Receiver):
 
         current_time = timestamps[-1] # Used at multiple occasions
         if not self.gui.window_closed:
-            self.gui.update_status_text(f"Last samples received: {round(current_time)}")
+            dt = datetime.fromtimestamp(current_time/1000) # Needs to be seconds
+            formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+            self.gui.update_status_text(f"Last samples received: {formatted_time}")
 
         # Save raw data periodically (periods checked inside method)
         # -----------------------------------------------------------------
