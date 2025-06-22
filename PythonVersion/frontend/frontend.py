@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt
 class Frontend(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Muse Deep Sleep Stimulation")
+        self.setWindowTitle("EazzZyLearn")
         self.setGeometry(100, 100, 350, 200)
         self.setFixedSize(350, 200)  # Lock window size
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)  # Remove maximize button
