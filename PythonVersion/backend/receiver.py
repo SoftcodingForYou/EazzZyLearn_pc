@@ -246,22 +246,16 @@ class Receiver:
         # =================================================================
         if key == 0:
             self.softstate = key
-            line = str(timestamp) + ', Stimulation paused'
-            stimhistory = open(outputfile, 'a') # Appending
-            stimhistory.write(line + '\n')
-            stimhistory.close()
+            line = str(self.get_time_stamp()) + ', Stimulation paused'
+            self.Cng.disk_io.line_store(line, self.HndlDt.stim_path)
             print('*** Stimulation paused! ...')
         elif key == 1:
             self.softstate = key
-            line = str(timestamp) + ', Stimulation enabled'
-            stimhistory = open(outputfile, 'a') # Appending
-            stimhistory.write(line + '\n')
-            stimhistory.close()
+            line = str(self.get_time_stamp()) + ', Stimulation enabled'
+            self.Cng.disk_io.line_store(line, self.HndlDt.stim_path)
             print('Stimulation resumed')
         elif key == -1:
             self.softstate = key
-            line = str(timestamp) + ', Stimulation forced, sleep/wake stages are estimated but ignored'
-            stimhistory = open(outputfile, 'a') # Appending
-            stimhistory.write(line + '\n')
-            stimhistory.close()
+            line = str(self.get_time_stamp()) + ', Stimulation forced, sleep/wake stages are estimated but ignored'
+            self.Cng.disk_io.line_store(line, self.HndlDt.stim_path)
             print('Stimulation forced, ignoring sleep/wake staging')
