@@ -4,7 +4,7 @@ import numpy as np
 import socket
 import json
 import time
-from threading import Thread
+from threading import Thread, Lock
 from pythonosc import dispatcher, osc_server
 
 class Receiver:
@@ -35,6 +35,7 @@ class Receiver:
         self.current_muse_metrics = None
 
         # self.prep_socket(self.ip, self.port) # Connect to socket
+        self.lock           = Lock()
         self.prep_osc_receiver(self.ip, self.port) # Connect to OSC receiver
         self.current_eeg_data = np.zeros((1, p.NUM_CHANNELS))
         
@@ -62,9 +63,8 @@ class Receiver:
 
         # Create OSC server
         self.server = osc_server.ThreadingOSCUDPServer((ip, port), self.dispatcher)
-        self.server_thread = Thread(target=self.server.serve_forever)
+        self.server_thread = Thread(target=self.server.serve_forever, name='osc_server_thread')
         self.server_thread.daemon = True
-        self.server_thread.start()
         print(f"OSC server listening on {ip}:{port} for Muse OSC messages")
 
 
@@ -74,25 +74,27 @@ class Receiver:
         # - 4 EEG channels TP9, AF7, AF8, TP10
         # - 1 to 4 optional Aux channels which we do not consider
             
-        if len(args) >= self.num_channels:
-            # Take first 4 channels and pad with zeros to match NUM_CHANNELS
-            muse_data = list(args[:self.num_channels])  # Important! This drops NaN elements on the 
-                                                        # right edge of the args vector. Therefore,
-                                                        # we need to pad the vector to restitute the 
-                                                        # NaNs in the next step
-            while len(muse_data) < self.num_channels:
-                muse_data.append(np.nan)
+        with self.lock: # Queuing calls which would otherwise get executed in parallel
+            if len(args) >= self.num_channels:
+                # Take first 4 channels and pad with zeros to match NUM_CHANNELS
+                muse_data = list(args[:self.num_channels]) 
+                # Important! This drops NaN elements on the right edge of the args vector.
+                # Therefore, we need to pad the vector to restitute the NaNs in the next step
+                while len(muse_data) < self.num_channels:
+                    muse_data.append(np.nan)
 
-            new_eeg_data = np.array([muse_data])
-            # Loop through each element and handle NaN values
-            for i in range(new_eeg_data.shape[1]):
-                if np.isnan(new_eeg_data[0,i]):
-                    new_eeg_data[0,i] = self.current_eeg_data[0,i]
-            
-            self.current_eeg_data = new_eeg_data
-            self.received_new_sample = True
-        else:
-            print(f"Warning: Received {len(args)} EEG values, expected at least 4")
+                new_eeg_data = np.array([muse_data])
+                # Loop through each element and handle NaN values
+                for i in range(new_eeg_data.shape[1]):
+                    if np.isnan(new_eeg_data[0,i]):
+                        new_eeg_data[0,i] = self.current_eeg_data[0,i]
+                
+                self.current_eeg_data = new_eeg_data
+                self.received_new_sample = True
+
+                self.execute_algorithm_pipeline()
+            else:
+                print(f"Warning: Received {len(args)} EEG values, expected at least 4")
 
 
     def handle_muse_metrics_message(self, address, *args):
@@ -176,6 +178,24 @@ class Receiver:
             # Stop thread
             if self.stop:
                 return
+            
+
+    def execute_algorithm_pipeline(self):
+        sample      = self.current_eeg_data
+        time_stamp  = self.get_time_stamp()
+
+        # Transpose vector
+        sample = np.transpose(sample)
+
+        # save to new buffer
+        self.buffer = np.concatenate((self.buffer[:, 1:], sample), axis=1)
+
+        # Save time_stamp
+        self.time_stamps[:-1] = self.time_stamps[1:]
+        self.time_stamps[-1] = time_stamp
+
+        # real_time_algorithm
+        self.real_time_algorithm(self.buffer, self.time_stamps)
 
 
     @abstractmethod
@@ -193,13 +213,22 @@ class Receiver:
         # Set start time
         self.start_time = time.perf_counter() * 1000  # Get recording start time
         # start thread
-        self.receiver_thread.start()
+        # self.receiver_thread.start()
+        self.server_thread.start()
 
 
     def stop_receiver(self):
         # Change the status of self.stop to stop the recording
         self.stop = True
+        self.server.shutdown()
+        line = str(self.get_time_stamp()) + ', Program quit irreversibly'
+        self.Cng.disk_io.line_store(line, self.HndlDt.stim_path)
+        self.HndlDt.disk_io.close_files()
+        self.Stg.disk_io.close_files()
+        self.Pdct.disk_io.close_files()
+        self.Cng.disk_io.close_files()
         time.sleep(2)  # Wait two seconds to stop de recording to be sure that everything stopped
+        print('Program quit entirely')
 
 
     def define_stimulation_state(self, key, outputfile, timestamp):
@@ -236,10 +265,3 @@ class Receiver:
             stimhistory.write(line + '\n')
             stimhistory.close()
             print('Stimulation forced, ignoring sleep/wake staging')
-        elif key == 2:
-            line = str(timestamp) + ', Program quit irreversibly'
-            stimhistory = open(outputfile, 'a') # Appending
-            stimhistory.write(line + '\n')
-            stimhistory.close()
-            print('Program quit entirely')
-            self.stop_receiver()

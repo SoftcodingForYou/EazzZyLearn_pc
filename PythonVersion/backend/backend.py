@@ -70,13 +70,9 @@ class Backend(Receiver):
         # -----------------------------------------------------------------
         # At this stage, we allow for code to be soft-paused or -forced: We
         # block or force stimulation manually
-        if self.gui.window_closed:
-            self.HndlDt.disk_io.close_files()
-            self.Stg.disk_io.close_files()
-            self.Pdct.disk_io.close_files()
-            self.Cng.disk_io.close_files()
-            self.define_stimulation_state(2, self.HndlDt.stim_path,
-                current_time)
+        if self.gui.window_closed and not self.stop:
+            self.stop_receiver()
+            return
         elif self.gui.stimulation_state != self.softstate:
             self.define_stimulation_state(self.gui.stimulation_state, self.HndlDt.stim_path,
                 current_time)
