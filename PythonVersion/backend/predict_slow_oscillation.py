@@ -25,7 +25,8 @@ class PredictSlowOscillation:
 
         self.throw_multi            = p.THROW_MULTIPLICATION
 
-        self.disk_io                = DiskIO(p.MAX_BUFFERED_LINES, p.PREDICTION_FLUSH_INTERVAL)
+        self.disk_io                = DiskIO(
+            p.MAX_BUFFERED_LINES, p.PREDICTION_FLUSH_INTERVAL, 'slow_osc_thread')
 
 
     def set_threshold(self, threshold_array):

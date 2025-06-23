@@ -4,9 +4,23 @@ from collections        import deque
 
 
 class DiskIO():
+    """Manages buffered file writing to disk.
 
-    def __init__(self, max_buffered_lines, flush_interval):
+    This class provides a buffered mechanism for writing lines to multiple files.
+    It uses a background thread to periodically flush the buffer to disk,
+    reducing the number of disk I/O operations.
+    """
+
+    def __init__(self, max_buffered_lines, flush_interval, thread_name):
+        """Initializes the DiskIO handler.
         
+        Args:
+            max_buffered_lines (int): The maximum number of lines to buffer in memory
+                before forcing a flush.
+            flush_interval (float): The maximum time in seconds to wait before
+                flushing the buffer, regardless of its size.
+        """
+
         # Add buffering for file writes
         self.max_buffered_lines = max_buffered_lines
         self.write_buffer       = deque(maxlen=self.max_buffered_lines)
@@ -16,16 +30,26 @@ class DiskIO():
         self.flush_interval     = flush_interval
 
         # Start background flush thread
-        self.flush_thread = Thread(target=self._background_flush, daemon=True)
+        self.flush_thread = Thread(
+            target=self._background_flush,
+            daemon=True,
+            name=thread_name,)
         self.flush_thread.start()
 
 
     def line_store(self, line, output_file, is_verbose=False):
-        # =================================================================
-        # Store on disk the stage information
-        # Note here that only when calling close(), the information gets
-        # indeed written into the file.
-        # =================================================================
+        """Adds a line to the write buffer to be written to a file.
+
+        The line is not immediately written to disk but is added to an in-memory
+        buffer. The buffer is flushed to disk when it's full, when a certain
+        time interval has passed, or when close_files() is called.
+
+        Args:
+            line (str): The line of text to write to the file.
+            output_file (str): The path to the file to write the line to.
+            is_verbose (bool, optional): If True, prints the line to the console.
+                Defaults to False.
+        """
         with self.buffer_lock:
             self.write_buffer.append((line, output_file))
 
@@ -39,7 +63,11 @@ class DiskIO():
 
 
     def _flush_buffer(self):
-        """Flush buffered writes to disk in batches"""
+        """Flushes the write buffer to disk.
+
+        This method writes all currently buffered lines to their respective files.
+        It groups lines by file to perform writes in batches.
+        """
         with self.buffer_lock:
             if not self.write_buffer:
                 return
@@ -71,7 +99,7 @@ class DiskIO():
 
 
     def _background_flush(self):
-        """Background thread to periodically flush buffer"""
+        """Periodically flushes the write buffer from a background thread."""
         while True:
             time.sleep(0.5) # Check every 500ms
             if self.write_buffer:
@@ -79,7 +107,11 @@ class DiskIO():
 
 
     def close_files(self):
-        """Close all file handles - call this when done"""
+        """Flushes any remaining lines in buffer and closes all file handles.
+
+        This should be called when no more lines will be written to ensure all
+        data is saved to disk and resources are released.
+        """
         for file_handle in self.file_handles.values():
             try:
                 file_handle.close()

@@ -35,7 +35,8 @@ class SleepWakeState():
         self.sleep_thresholds           = p.SLEEP_THRESHOLDS
         self.wake_thresholds            = p.WAKE_THRESHOLDS
 
-        self.disk_io                    = DiskIO(p.MAX_BUFFERED_LINES, p.STAGE_FLUSH_INTERVAL)
+        self.disk_io                    = DiskIO(
+            p.MAX_BUFFERED_LINES, p.STAGE_FLUSH_INTERVAL, 'staging_thread')
 
 
     def master_stage_wake_and_sleep(self, v_wake, v_sleep, freq_range, 

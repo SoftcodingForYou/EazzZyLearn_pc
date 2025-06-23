@@ -73,7 +73,8 @@ class HandleData():
         self.background_sound   = p.SUBJECT_INFO["background"]
         self.sound_format       = p.SOUND_FORMAT
 
-        self.disk_io            = DiskIO(p.MAIN_BUFFER_LENGTH, p.DATA_FLUSH_INTERVAL)
+        self.disk_io            = DiskIO(
+            p.MAIN_BUFFER_LENGTH, p.DATA_FLUSH_INTERVAL, 'handle_data_thread')
 
 
     def load_background_sound(self):

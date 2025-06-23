@@ -23,7 +23,8 @@ class Cueing:
         self.stim_time          = 0 # Last stimulation time stamp (Used to respect refractory periods)
         self.s_stim             = 0 # Keep count of stimulations (scalar)
 
-        self.disk_io            = DiskIO(p.MAX_BUFFERED_LINES, p.STIM_FLUSH_INTERVAL)
+        self.disk_io            = DiskIO(
+            p.MAX_BUFFERED_LINES, p.STIM_FLUSH_INTERVAL, 'cueing_thread')
 
 
     def start_fading_sound(self, sound, soundsampling):
