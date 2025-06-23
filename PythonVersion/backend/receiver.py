@@ -36,7 +36,7 @@ class Receiver:
 
         # self.prep_socket(self.ip, self.port) # Connect to socket
         self.prep_osc_receiver(self.ip, self.port) # Connect to OSC receiver
-        self.current_eeg_data = None
+        self.current_eeg_data = np.zeros((1, p.NUM_CHANNELS))
         
         # Initialize zeros buffer and time stamps
         self.buffer         = self.prep_buffer(self.num_channels, self.buffer_length)
@@ -70,18 +70,20 @@ class Receiver:
 
     def handle_eeg_message(self, address, *args):
         # Handle incoming OSC message from Muse headband
-        # Muse sends 4 EEG channels: TP9, AF7, AF8, TP10
+        # Muse sends:
+        # - 4 EEG channels TP9, AF7, AF8, TP10
+        # - 1 to 4 optional Aux channels which we do not consider
             
-        if len(args) >= 4:
+        if len(args) >= self.num_channels:
             # Take first 4 channels and pad with zeros to match NUM_CHANNELS
-            muse_data = list(args[:4])
-            # Pad with zeros to reach NUM_CHANNELS
+            muse_data = list(args[:self.num_channels])  # Important! This drops NaN elements on the 
+                                                        # right edge of the args vector. Therefore,
+                                                        # we need to pad the vector to restitute the 
+                                                        # NaNs in the next step
             while len(muse_data) < self.num_channels:
-                muse_data.append(0.0)
+                muse_data.append(np.nan)
 
             new_eeg_data = np.array([muse_data])
-            if self.current_eeg_data is None:
-                self.current_eeg_data = new_eeg_data
             # Loop through each element and handle NaN values
             for i in range(new_eeg_data.shape[1]):
                 if np.isnan(new_eeg_data[0,i]):

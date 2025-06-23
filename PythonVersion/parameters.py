@@ -17,7 +17,7 @@ SUBJECT_INFO    = {
 # -------------------------------------------------------------------------
 
 # Number of channels to be used
-NUM_CHANNELS    = 6
+NUM_CHANNELS    = 4
 
 # Select channels of interest
 # Manually established list: to adapt if data structure changes
@@ -26,8 +26,8 @@ ELEC["TP9"]     = 0
 ELEC["AF7"]     = 1
 ELEC["AF8"]     = 2
 ELEC["TP10"]    = 3
-ELEC["Aux1"]    = 4
-ELEC["Aux2"]    = 5
+# ELEC["Aux1"]    = 4
+# ELEC["Aux2"]    = 5
 
 IDX_ELEC        = ELEC["AF7"]
 
