@@ -52,6 +52,7 @@ class GenerateOutputs():
             idx_window          = np.logical_and(win_start, win_stop)
             ezl_wake.append(int(round(np.median(y_wake[idx_window]))))
             idx_processed       = np.hstack((idx_processed, np.where(idx_window)[0]))
+        y_wake = np.array(ezl_wake)
 
         # # Most commonly sleep/wake staging is performed every 30s on 30s
         # # chunks. Here however, we stage:
@@ -71,6 +72,11 @@ class GenerateOutputs():
         # y_wake                  = np.array(ezl_wake)
         y_sws                   = y_sws[0:-1:6]
 
+        # plt.figure()
+        # plt.plot(y_wake)
+        # plt.plot(y_sws)
+        # plt.show()
+
         if y_wake.size < y_sws.size:
             y_sws = y_sws[:y_wake.size]
         elif y_wake.size > y_sws.size:
@@ -79,9 +85,10 @@ class GenerateOutputs():
         y_deep_sleep = np.zeros((y_sws.size)) 
         y_deep_sleep[np.logical_and(y_sws == 1, y_wake == 0)] = 1
 
-        y_hypnogram                     = np.ones((y_deep_sleep.size))
-        y_hypnogram[y_wake == 1]        = 2
-        y_hypnogram[y_deep_sleep == 1]  = 0
+        y_hypnogram                     = np.ones((y_deep_sleep.size)) # ones are "Other"
+        y_hypnogram[y_wake == 1]        = 2 # twos are "Deep sleep"
+        y_hypnogram[y_deep_sleep == 1]  = 0 # zeros are "Awake"
+
 
         # 1. Hypnogram
         self.generate_hypnogram(y_hypnogram)
@@ -128,7 +135,6 @@ class GenerateOutputs():
         # Extract stimulations
         x_stim          = self.subject["stim"]["x_stim"]
 
-        subj_times      = self.subject["times"]
         samples_to_ms   = 1000/self.sfr
         ms_to_min       = 1/60000
         min_to_hrs      = 1/60   
@@ -157,7 +163,8 @@ class GenerateOutputs():
         idx_end = min([Sxx.shape[1], y_hypnogram.size])
 
         last_signal_time    = y_hypnogram.size*30*self.sfr
-        subj_times          = subj_times[0:last_signal_time]
+        subj_times          = range(0, last_signal_time)
+        subj_times          = np.array([x * 1000 / self.sfr for x in list(subj_times)])
         delta_signal        = delta_signal[0:last_signal_time]
         x_stim              = np.delete(x_stim, x_stim > last_signal_time)
 
@@ -193,9 +200,9 @@ class GenerateOutputs():
         fig, ax = plt.subplots(1, 1, figsize=(9, 2))
 
         idx_ax = 0
-        ax.plot(subj_times * ms_to_min * min_to_hrs, delta_signal, linewidth=0.5, color=[0.2, 0.2, 0.7])
-        ax.scatter(subj_times[x_stim] * ms_to_min * min_to_hrs, mtl.repmat(0, x_stim.size, 1), 25, 'k', zorder=2000)
-        ax.set_ylim((-1.5*np.std(delta_signal), 1.5*np.std(delta_signal)))
+        ax.plot(subj_times * ms_to_min * min_to_hrs, delta_signal[0:last_signal_time], linewidth=0.5, color=[0.2, 0.2, 0.7])
+        ax.scatter(subj_times[x_stim] * ms_to_min * min_to_hrs, mtl.repmat(0, x_stim.size, 1), 15, 'k', zorder=2000)
+        ax.set_ylim((-1.5*np.std(delta_signal[0:last_signal_time]), 1.5*np.std(delta_signal[0:last_signal_time])))
         ax.set_xlim((subj_times[0]* ms_to_min * min_to_hrs, subj_times[-1]* ms_to_min * min_to_hrs))
         ax.set_xlabel('')
         ax.set_ylabel('Amplitude (uV)')
@@ -207,7 +214,7 @@ class GenerateOutputs():
 
     def calculate_recording_time(self):
         ms_to_hrs = 1 / 3600000
-        self.recording_time_hrs = self.subject["times"][-1] * ms_to_hrs
+        self.recording_time_hrs = (self.subject["times_real"][-1] - self.subject["times_real"][0]) * ms_to_hrs
 
     def calculate_percentage_asleep(self):
         percentage_awake = sum(self.subject["sleep"]["y_wake"]) / self.subject["sleep"]["y_wake"].size * 100
@@ -286,8 +293,8 @@ class GenerateOutputs():
 
         before              = 1  # seconds
         after               = 1  # seconds
-        x_times             = range(0, (before+after)*1000, round(1000/samplingrate))
-        x_times             = [x / 1000 for x in list(x_times)]
+        x_times             = range(-before*samplingrate, after*samplingrate)
+        x_times             = [x * 1000 / samplingrate for x in list(x_times)]
 
         SlowOsc             = np.zeros((len(x_down), (before + after) * samplingrate))
         DownAmp             = np.zeros(len(x_down))
@@ -530,17 +537,20 @@ class GenerateOutputs():
             "set_total_sos":            False,
             "set_number_and_name_cue":  False,
         }
+
+        # Important: Image lines won't be replaced because they are pointing already to images 
+        # placed in the same folder as the report file
         for line in lines:
 
             # Set user name
-            if "Usuario: {}" in line:
-                line = line.replace("Usuario: {}", "Usuario: {}".format(self.subject_name))
+            if "User: {}" in line:
+                line = line.replace("User: {}", "User: {}".format(self.subject_name))
                 lines[iL] = line
                 set_parameters["set_username"] = True
             
             # Set date
-            if "Fecha: {}" in line:
-                line = line.replace("Fecha: {}", "Fecha: {}".format(datetime.strftime(self.recording_date, "%B %d, %Y (%H:%M)")))
+            if "Date: {}" in line:
+                line = line.replace("Date: {}", "Date: {}".format(datetime.strftime(self.recording_date, "%B %d, %Y (%H:%M)")))
                 lines[iL] = line
                 set_parameters["set_date"] = True
 
@@ -575,33 +585,33 @@ class GenerateOutputs():
                 set_parameters["set_delta_component"] = True
 
             # Set recording time
-            if "durante {} horas" in line:
-                line = line.replace("durante {} horas", "durante {} horas".format(round(self.recording_time_hrs, 2)))
+            if "recorded for {} hours" in line:
+                line = line.replace("recorded for {} hours", "recorded for {} hours".format(round(self.recording_time_hrs, 2)))
                 lines[iL] = line
                 set_parameters["set_recording_time"] = True
 
             # Set sleep proportion
-            if "durante el {} %" in line:
-                line = line.replace("durante el {} %", "durante el {} %".format(self.percentage_asleep))
+            if "asleep during {}" in line:
+                line = line.replace("asleep during {}", "asleep during {}".format(self.percentage_asleep))
                 lines[iL] = line
                 set_parameters["set_sleep_proportion"] = True
 
             # Set sleep proportion
-            if "dormía es de {} %" in line:
-                line = line.replace("dormía es de {} %", "dormía es de {} %".format(self.percentage_deep_sleep))
+            if "asleep was {}" in line:
+                line = line.replace("asleep was {}", "asleep was {}".format(self.percentage_deep_sleep))
                 lines[iL] = line
                 set_parameters["set_deep_sleep_prop"] = True
 
             # Set total amount of SOs
-            if "de {} ondas Delta" in line:
-                line = line.replace("de {} ondas Delta", "de {} ondas Delta".format(self.number_so))
+            if "total of {} Delta waves" in line:
+                line = line.replace("total of {} Delta waves", "total of {} Delta waves".format(self.number_so))
                 lines[iL] = line
                 set_parameters["set_total_sos"] = True
 
             # Set number of stimulated SOs and cue
-            if "Se estimularon {} de esas con el sonido “{}”" in line:
-                line = line.replace("Se estimularon {} de esas con el sonido “{}”",
-                             "Se estimularon {} de esas con el sonido “{}”".format(len(self.subject["stim"]["x_stim"]), self.used_cue))
+            if "Stimulated were {} of them with the sound “{}”" in line:
+                line = line.replace("Stimulated were {} of them with the sound “{}”",
+                             "Stimulated were {} of them with the sound “{}”".format(len(self.subject["stim"]["x_stim"]), self.used_cue))
                 lines[iL] = line
                 set_parameters["set_number_and_name_cue"] = True
 

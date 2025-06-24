@@ -8,7 +8,7 @@ import scipy
 
 class DataExtraction():
     
-    def master_extraction(self, pathdata):
+    def master_extraction(self, pathdata, is_unix_timestamps = True):
 
         files = os.listdir(pathdata)
         files = [f for f in files if f[0:2] != '._']  # System trash
@@ -77,7 +77,8 @@ class DataExtraction():
             stim_out = stim_out + stim_curr
             stage_out = stage_out + stage_curr
 
-            eeg_lat_shift = last_timestamp
+            if not is_unix_timestamps:
+                eeg_lat_shift = last_timestamp
             t_file_breaks.append(last_timestamp)
 
         # Build EEG signal and time stamps
@@ -470,8 +471,11 @@ class DataExtraction():
         for pred in predictions:
             if len(pred) == 0:
                 continue
-            downstate_times.append(float(pred[0:pred.find(',')]))
-            upstate_times.append(float(pred[pred.find('at ')+3:]))
+            try:
+                downstate_times.append(float(pred[0:pred.find(',')]))
+                upstate_times.append(float(pred[pred.find('at ')+3:]))
+            except Exception as e:
+                print(f"{e}; pred = {pred}")
 
         x_down = np.zeros(len(downstate_times), dtype='int')
         y_down = np.zeros(len(downstate_times), dtype='float')
