@@ -6,7 +6,7 @@ from backend.signal_processing          import SignalProcessing
 from backend.predict_slow_oscillation   import PredictSlowOscillation
 from threading                          import Thread
 from datetime                           import datetime
-
+import time
 
 # Inherance of Receiver class is key here so that we call 
 # real_time_alorithm() here below instead of the one in Receiver by 
@@ -33,6 +33,14 @@ class Backend(Receiver):
         self.start_receiver(self.HndlDt.output_dir, self.HndlDt.subject_info)
         self.gui.update_status_text("Waiting for data stream ...")
 
+        self.current_time       = float(0.0)
+        self.monitor_iterations = int(0)
+        self.monitor_interval   = int(3) # seconds
+        self.monitor_running    = True
+        self.monitor_thread     = Thread(
+            target=self.runtime_monitor, daemon=True, name='runtime_monitor')
+        self.monitor_thread.start()
+
 
     def real_time_algorithm(self, buffer, timestamps):
         # =================================================================
@@ -42,10 +50,9 @@ class Backend(Receiver):
         # =================================================================
 
         current_time = timestamps[-1] # Used at multiple occasions
-        if not self.gui.window_closed:
-            dt = datetime.fromtimestamp(current_time/1000) # Needs to be seconds
-            formatted_time = dt.strftime("%H:%M:%S")
-            self.gui.update_status_text(f"Last samples received: {formatted_time}")
+        self.current_time = current_time
+        self.monitor_iterations += 1
+
 
         # Save raw data periodically (periods checked inside method)
         # -----------------------------------------------------------------
@@ -71,6 +78,7 @@ class Backend(Receiver):
         # At this stage, we allow for code to be soft-paused or -forced: We
         # block or force stimulation manually
         if self.gui.window_closed and not self.stop:
+            self.monitor_running = False
             self.stop_receiver()
             return
         elif self.gui.stimulation_state != self.softstate:
@@ -81,9 +89,9 @@ class Backend(Receiver):
                 current_time)
         
         if self.softstate == 0:
-            if self.print_time_stamp + 1000 < current_time:
-                self.print_time_stamp = current_time
-                # print('*** Stimulation paused: Ignoring slow oscillations...')
+            # if self.print_time_stamp + 1000 < current_time:
+            #     self.print_time_stamp = current_time
+            #     print('*** Stimulation paused: Ignoring slow oscillations...')
             return
         elif self.softstate != -1 and ( 
             self.Stg.isawake == True or self.Stg.issws == False ):
@@ -132,3 +140,17 @@ class Backend(Receiver):
             stim_thread.start()
 
         # print(self.get_time_stamp() - current_time) # Evaluate code speed
+
+
+    def runtime_monitor(self):
+        """Separate thread for monitoring and reporting runtime monitor"""
+        while self.monitor_running:
+            time.sleep(self.monitor_interval)
+            if self.monitor_iterations > 0:
+                monitor = round(self.monitor_iterations / self.monitor_interval)
+                self.gui.update_speed_text(f"Runtime speed: {monitor} Hz")
+                self.monitor_iterations = 0
+
+            dt = datetime.fromtimestamp(self.current_time/1000) # Needs to be seconds
+            formatted_time = dt.strftime("%H:%M:%S")
+            self.gui.update_status_text(f"Last samples received: {formatted_time}")

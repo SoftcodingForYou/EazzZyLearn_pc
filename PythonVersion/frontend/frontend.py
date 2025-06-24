@@ -1,16 +1,17 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QComboBox, QLabel
 from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt
 import sys
 import parameters as p
 import os
-from PyQt5.QtCore import Qt
+import time
 
 class Frontend(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EazzZyLearn")
-        self.setGeometry(100, 100, 350, 200)
-        self.setFixedSize(350, 200)  # Lock window size
+        self.setGeometry(100, 100, 350, 225)
+        # self.setFixedSize(350, 200)  # Lock window size
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)  # Remove maximize button
 
         # Set window icon
@@ -45,6 +46,15 @@ class Frontend(QMainWindow):
             }
         """)
 
+        self.speed_label = QLabel("Initializing ...")
+        self.speed_label.setStyleSheet("""
+            QLabel {
+                color: #333333;
+                font-size: 12px;
+                padding: 5px;
+            }
+        """)
+
         # Add widgets to layout
         layout.addWidget(channel_label)
         layout.addWidget(self.channel_combo)
@@ -52,6 +62,7 @@ class Frontend(QMainWindow):
         layout.addWidget(self.force_button)
         layout.addWidget(self.stop_button)
         layout.addWidget(self.status_label)
+        layout.addWidget(self.speed_label)
 
         # Connect button signals
         self.start_button.clicked.connect(self.start_stimulation)
@@ -116,6 +127,7 @@ class Frontend(QMainWindow):
         
         if reply == QMessageBox.Yes:
             self.window_closed = True
+            time.sleep(1) # Give time to pick up `window_closed` change by backend
             print("GUI stopped")
             event.accept()  # Accept the close event
         else:
@@ -158,6 +170,10 @@ class Frontend(QMainWindow):
     def update_status_text(self, text):
         """Update the status label text"""
         self.status_label.setText(f"{text}")
+
+    def update_speed_text(self, text):
+        """Update the speed label text"""
+        self.speed_label.setText(f"{text}")
 
 def main():
     app = QApplication(sys.argv)
