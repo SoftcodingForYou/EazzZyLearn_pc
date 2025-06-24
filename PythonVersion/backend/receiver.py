@@ -4,7 +4,8 @@ import numpy as np
 import socket
 import json
 import time
-from threading import Thread, Lock
+from threading import Thread
+import queue
 from pythonosc import dispatcher, osc_server
 
 class Receiver:
@@ -35,17 +36,22 @@ class Receiver:
         self.current_muse_metrics = None
 
         # self.prep_socket(self.ip, self.port) # Connect to socket
-        self.lock           = Lock()
         self.prep_osc_receiver(self.ip, self.port) # Connect to OSC receiver
         self.current_eeg_data = np.zeros((1, p.NUM_CHANNELS))
+
+        self.eeg_queue = queue.SimpleQueue()
+
+        # Define thread for receiving
+        self.receiver_thread = Thread(
+            target=self.fill_buffer,
+            name='receiver_thread',
+            daemon=False)
         
         # Initialize zeros buffer and time stamps
         self.buffer         = self.prep_buffer(self.num_channels, self.buffer_length)
         self.time_stamps    = self.prep_time_stamps(self.buffer_length)
 
         self.softstate      = 1
-
-        self.received_new_sample = False
         
 
     def prep_socket(self, ip, port):
@@ -74,27 +80,24 @@ class Receiver:
         # - 4 EEG channels TP9, AF7, AF8, TP10
         # - 1 to 4 optional Aux channels which we do not consider
             
-        with self.lock: # Queuing calls which would otherwise get executed in parallel
-            if len(args) >= self.num_channels:
-                # Take first 4 channels and pad with zeros to match NUM_CHANNELS
-                muse_data = list(args[:self.num_channels]) 
-                # Important! This drops NaN elements on the right edge of the args vector.
-                # Therefore, we need to pad the vector to restitute the NaNs in the next step
-                while len(muse_data) < self.num_channels:
-                    muse_data.append(np.nan)
+        if len(args) >= self.num_channels:
+            # Take first 4 channels and pad with zeros to match NUM_CHANNELS
+            muse_data = list(args[:self.num_channels]) 
+            # Important! This drops NaN elements on the right edge of the args vector.
+            # Therefore, we need to pad the vector to restitute the NaNs in the next step
+            while len(muse_data) < self.num_channels:
+                muse_data.append(np.nan)
 
-                new_eeg_data = np.array([muse_data])
-                # Loop through each element and handle NaN values
-                for i in range(new_eeg_data.shape[1]):
-                    if np.isnan(new_eeg_data[0,i]):
-                        new_eeg_data[0,i] = self.current_eeg_data[0,i]
-                
-                self.current_eeg_data = new_eeg_data
-                self.received_new_sample = True
+            new_eeg_data = np.array([muse_data])
+            # Loop through each element and handle NaN values
+            for i in range(new_eeg_data.shape[1]):
+                if np.isnan(new_eeg_data[0,i]):
+                    new_eeg_data[0,i] = self.current_eeg_data[0,i]
 
-                self.execute_algorithm_pipeline()
-            else:
-                print(f"Warning: Received {len(args)} EEG values, expected at least 4")
+            self.current_eeg_data = new_eeg_data
+            self.eeg_queue.put((new_eeg_data, self.get_time_stamp()))
+        else:
+            print(f"Warning: Received {len(args)} EEG values, expected at least 4")
 
 
     def handle_muse_metrics_message(self, address, *args):
@@ -128,11 +131,6 @@ class Receiver:
         
     #     return eeg_data
 
-    # def get_sample(self):
-    #     # Get eeg samples from the OSC stream
-    #     if self.current_eeg_data is not None:
-    #         return self.current_eeg_data
-    #     return np.zeros((1, self.num_channels))  # Return zeros if no data received yet
 
     def get_time_stamp(self):
         # return round(time.perf_counter() * 1000 - self.start_time, 4)
@@ -144,23 +142,8 @@ class Receiver:
         # that later can be accesed to perfom the real time analysis
         while True:
 
-            if not self.received_new_sample:
-                if hasattr(self, 'gui') and self.gui.window_closed:
-                    self.HndlDt.disk_io.close_files()
-                    self.Stg.disk_io.close_files()
-                    self.Pdct.disk_io.close_files()
-                    self.Cng.disk_io.close_files()
-                    self.define_stimulation_state(2, self.HndlDt.stim_path, self.get_time_stamp())
-                    return
-                
-                time.sleep(0.001)  # Add a small delay to reduce CPU usage
-                continue
-            else:
-                self.received_new_sample = False
-
             # Get samples
-            sample      = self.current_eeg_data # self.get_sample()
-            time_stamp  = self.get_time_stamp()
+            sample, time_stamp = self.eeg_queue.get(block=True) # Wait for message if none is in queue
 
             # Transpose vector
             sample = np.transpose(sample)
@@ -178,24 +161,6 @@ class Receiver:
             # Stop thread
             if self.stop:
                 return
-            
-
-    def execute_algorithm_pipeline(self):
-        sample      = self.current_eeg_data
-        time_stamp  = self.get_time_stamp()
-
-        # Transpose vector
-        sample = np.transpose(sample)
-
-        # save to new buffer
-        self.buffer = np.concatenate((self.buffer[:, 1:], sample), axis=1)
-
-        # Save time_stamp
-        self.time_stamps[:-1] = self.time_stamps[1:]
-        self.time_stamps[-1] = time_stamp
-
-        # real_time_algorithm
-        self.real_time_algorithm(self.buffer, self.time_stamps)
 
 
     @abstractmethod
@@ -205,15 +170,9 @@ class Receiver:
 
 
     def start_receiver(self, output_dir, subject_info):
-        # Define thread for receiving
-        self.receiver_thread = Thread(
-            target=self.fill_buffer,
-            name='receiver_thread',
-            daemon=False)
         # Set start time
-        self.start_time = time.perf_counter() * 1000  # Get recording start time
-        # start thread
-        # self.receiver_thread.start()
+        # start threads
+        self.receiver_thread.start()
         self.server_thread.start()
 
 
