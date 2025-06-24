@@ -141,11 +141,6 @@ General working scheme of the code shown below:
 
 **Previous keyboard-based interaction has been replaced with GUI controls**\! You are requested to answer with “Y” in order to quit the program definitely or any other answer if you accidently hit Q and want to continue recording.
 
-## Fundamental structure of the code
-General working scheme of the code shown below:
-
-![Keyboard](assets/image4.png)
-
 ## System Architecture
 
 ### Code Organization
