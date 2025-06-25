@@ -12,6 +12,28 @@ import time
 # real_time_alorithm() here below instead of the one in Receiver by 
 # fill_buffer()
 class Backend(Receiver):
+    """
+    Main backend controller for EazzZyLearn real-time processing.
+
+    Features:
+    - Inherits from Receiver to handle real-time EEG data acquisition.
+    - Coordinates data handling, cueing, sleep/wake staging, signal processing, and slow oscillation prediction.
+    - Interfaces with the GUI to update status and respond to user actions (enable, force, pause, channel selection).
+    - Runs a runtime monitor thread to report processing speed and sample reception.
+    - Implements the real_time_algorithm for per-sample processing, including:
+        - Data saving
+        - Signal extraction
+        - Sleep/wake staging
+        - Stimulation state management
+        - Slow oscillation upstate prediction
+        - Stimulation triggering
+
+    Args:
+        gui: Reference to the Frontend instance for UI updates and state checks.
+
+    Usage:
+        backend = Backend(gui)
+    """
 
     def __init__(self, gui):
         super().__init__()
@@ -82,8 +104,7 @@ class Backend(Receiver):
             self.stop_receiver()
             return
         elif self.gui.stimulation_state != self.softstate:
-            self.define_stimulation_state(self.gui.stimulation_state, self.HndlDt.stim_path,
-                current_time)
+            self.define_stimulation_state(self.gui.stimulation_state)
         if self.SgPrc.channel != self.gui.processing_channel - 1:
             self.SgPrc.switch_channel(self.gui.processing_channel, self.HndlDt.stim_path, 
                 current_time)

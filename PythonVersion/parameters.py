@@ -1,3 +1,10 @@
+# Entrypoint device
+# -------------------------------------------------------------------------
+DEVICE          = {
+    "OpenBCI":  False,
+    "Muse":     True,
+}
+
 # Recording session information (to be set for each participant)
 # -------------------------------------------------------------------------
 

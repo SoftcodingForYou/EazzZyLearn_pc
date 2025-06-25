@@ -114,7 +114,7 @@ An anticipated **ending/quitting of the code will not lead to any data loss if e
 
 ## Compilation
 The main_[...].py scripts are compilable via Nuitka:
-`python3.12 -m nuitka --standalone --follow-imports --include-package=PyQt5 --enable-plugin=pyqt5 --include-data-dir=PythonVersion/frontend/assets=frontend/assets --include-data-dir=Sounds=Sounds --output-dir=build --output-filename=EazzZyLearn.exe PythonVersion/main_SLEEP.py`
+`python3.12 -m nuitka --standalone --follow-imports --include-package=PyQt5 --enable-plugin=pyqt5 --include-data-dir=PythonVersion/frontend/assets=frontend/assets --include-data-dir=Sounds=Sounds --output-dir=build --output-filename=EazzZyLearn.exe --windows-icon-from-ico=EazzZyLearn.ico ./PythonVersion/main_SLEEP.py`
 
 Note that there is no `--onefile` comílation flag, as this is changing the way paths are handled and leads to assets not being found.
 

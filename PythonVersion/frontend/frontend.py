@@ -7,7 +7,35 @@ import os
 import time
 
 class Frontend(QMainWindow):
+    """
+    Main GUI window for EazzZyLearn.
+
+    Features:
+    - Channel selection dropdown for processing channel.
+    - Enable, Force, and Pause buttons to control stimulation state.
+    - Status and speed labels for real-time feedback.
+    - Custom window icon and styling.
+    - Handles window close events with confirmation dialog.
+    - Methods to update UI elements and respond to user actions.
+
+    Usage:
+        window = Frontend()
+        window.show()
+    """
+    
     def __init__(self):
+        """Initialize the main GUI window for EazzZyLearn.
+
+        Sets up the window title, icon, size, and disables the maximize button.
+        Creates and arranges all UI elements, including:
+            - Channel selection dropdown
+            - Enable, Force, and Pause buttons
+            - Status and speed labels
+        Connects button and dropdown signals to their respective handlers.
+        Initializes default states for channel selection and stimulation controls.
+        Applies custom styles to the buttons and window.
+        """
+
         super().__init__()
         self.setWindowTitle("EazzZyLearn")
         self.setGeometry(100, 100, 350, 225)
