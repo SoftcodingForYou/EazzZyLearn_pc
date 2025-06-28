@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QComboBox, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QComboBox, QLabel, QCheckBox
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 import sys
@@ -58,6 +58,10 @@ class Frontend(QMainWindow):
         self.channel_combo = QComboBox()
         for i in range(0, p.NUM_CHANNELS):
             self.channel_combo.addItem(option_list[i])
+
+        # Create flip signal checkbox
+        self.flip_signal = p.FLIP_SIGNAL
+        self.flip_signal_checkbox = QCheckBox("Flip signal")
         
         # Create buttons
         self.start_button = QPushButton("Enable")
@@ -86,6 +90,7 @@ class Frontend(QMainWindow):
         # Add widgets to layout
         layout.addWidget(channel_label)
         layout.addWidget(self.channel_combo)
+        layout.addWidget(self.flip_signal_checkbox)
         layout.addWidget(self.start_button)
         layout.addWidget(self.force_button)
         layout.addWidget(self.stop_button)
@@ -98,6 +103,7 @@ class Frontend(QMainWindow):
         self.stop_button.clicked.connect(self.pause_stimulation)
 
         # Connect channel selection
+        self.flip_signal_checkbox.stateChanged.connect(self.flip_signal_changed)
         self.channel_combo.currentTextChanged.connect(self.channel_changed)
 
         self.window_closed = False
@@ -190,6 +196,13 @@ class Frontend(QMainWindow):
         self.force_button.setProperty("active", False)
         self.stop_button.setProperty("active", True)
         self.force_style_update()
+
+    def flip_signal_changed(self, state):
+        """Handle flip signal checkbox state change"""
+        self.flip_signal = state == Qt.Checked
+        # Notify backend of state change
+        if hasattr(self, 'backend'):
+            self.backend.set_flip_signal(self.flip_signal)
 
     def channel_changed(self, value):
         value = str(value)

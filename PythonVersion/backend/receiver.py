@@ -59,6 +59,8 @@ class Receiver:
         self.time_stamps    = self.prep_time_stamps(self.buffer_length)
 
         self.softstate      = 1
+        self.flip_signal    = p.FLIP_SIGNAL
+        self._process_sample = self._process_sample_flipped if p.FLIP_SIGNAL else self._process_sample_normal
         
 
     def prep_udp_server(self, ip, port):
@@ -174,7 +176,7 @@ class Receiver:
 
         # Flip signals because OpenBCI streams data P - N pins which 
         # corresponds to Reference - Electrode
-        eeg_data        = np.array([eeg_data]) * -1
+        eeg_data        = np.array([eeg_data])
         
         return eeg_data, self.get_time_stamp()
 
@@ -195,6 +197,7 @@ class Receiver:
 
             # Get samples
             sample, time_stamp = self.get_current_sample_and_timestamp()
+            sample = self._process_sample(sample)
 
             # Transpose vector
             sample = np.transpose(sample)
@@ -212,6 +215,22 @@ class Receiver:
             # Stop thread
             if self.stop:
                 return
+            
+
+    def set_flip_signal(self, value):
+        if self.flip_signal != value:
+            self.flip_signal = value
+            # Set function pointer based on state
+            self._process_sample = self._process_sample_flipped if value else self._process_sample_normal
+            print(f"Flip signal: {'Enabled' if value else 'Disabled'}")
+
+
+    def _process_sample_normal(self, sample):
+        return sample
+
+
+    def _process_sample_flipped(self, sample):
+        return sample * -1
 
 
     @abstractmethod

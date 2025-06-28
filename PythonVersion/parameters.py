@@ -73,6 +73,7 @@ SAMPLERATE      = 256
 PGA             = 24
 BAUDRATE        = 115200
 TIMEOUT         = None
+FLIP_SIGNAL     = False
 
 
 # # Streaming parameters (class Receiver)
@@ -156,7 +157,7 @@ FILT_ORDER              = 3
 # -------------------------------------------------------------------------
 FREQUENCY_BANDS = {
     'Delta':    (0.5, 4),
-    'SlowDelta':(0.5, 2),
+    'SlowDelta':(0.5, 2), # Slow delta (slow oscillation component) was used when upstate stimulation relied on Sine Wave fitting. The Slow Delta component is currently not being used
     'Alpha':    (8,   12),
     'Spindle':  (12,  16),
     'Theta':    (4,   8),

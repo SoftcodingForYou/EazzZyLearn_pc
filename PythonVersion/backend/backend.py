@@ -46,6 +46,7 @@ class Backend(Receiver):
         self.SgPrc  = SignalProcessing()
         self.Pdct   = PredictSlowOscillation()
         self.gui    = gui
+        gui.backend = self
 
         # Start fading background music
         # background_sound, sampling = self.HndlDt.load_background_sound()
