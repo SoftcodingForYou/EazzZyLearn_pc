@@ -1,14 +1,18 @@
-# EazzZyLearn  
+# EazzZyLearn
 V2025.06
 
 ## Overview  
-EazzZyLearn is a real-time closed-loop neurofeedback system for sleep research that detects deep sleep and triggers memory reactivation cues. The system processes EEG data from **Muse headbands by Interaxon Inc.** in real-time to detect slow oscillations during sleep and automatically plays audio cues to enhance memory consolidation using **Targeted Memory Reactivation (TMR)** techniques.
+EazzZyLearn is a real-time closed-loop neurofeedback system for sleep research that detects deep sleep and triggers memory reactivation cues. The system processes EEG data in real-time to detect slow oscillations during sleep and automatically plays audio cues to enhance memory consolidation using **Targeted Memory Reactivation (TMR)** techniques.
 
 The system features dual sleep classification methods:
 - **Traditional spectral analysis** with research-validated thresholds (85.88% accuracy)
 - **Advanced machine learning classification** using pre-trained sleep staging models
 
 All parameters for online analysis and stimulation are configured in **`PythonVersion/parameters.py`**.
+
+## Compatibility
+- Interaxon Inc. Muse 2, Muse S 2nd Gen and Muse S Athena
+- OpenBCI Cyton
 
 ## Installation and Dependencies
 Install required dependencies using:
