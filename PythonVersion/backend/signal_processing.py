@@ -1,6 +1,6 @@
 import scipy.signal
-import numpy as np
-import parameters as p
+import numpy            as np
+import parameters       as p
 
 
 class SignalProcessing():
@@ -149,6 +149,9 @@ class SignalProcessing():
         # =================================================================
         v_raw           = buffer[self.channel, :]
 
+        # nans, x = self.nan_helper(v_raw)
+        # v_raw[nans]= np.interp(x(nans), x(~nans), v_raw[~nans])
+
         # Reject electrical noise:
         v_clean_filtfilt      = self.filt_signal_filtfilt(v_raw, 
             self.b_notch, self.a_notch)
@@ -177,6 +180,19 @@ class SignalProcessing():
             self.delta_buffer_length)
 
         return v_wake, v_sleep, v_filtered_delta, v_delta, v_slowdelta
+    
+
+    def nan_helper(self, y):
+        """Helper to handle indices and logical indices of NaNs.
+
+        Input:
+            - y, 1d numpy array with possible NaNs
+        Output:
+            - nans, logical indices of NaNs
+            - index, a function, with signature indices= index(logical_indices),
+            to convert logical indices of NaNs to 'equivalent' indices
+        """
+        return np.isnan(y), lambda z: z.nonzero()[0]
 
 
     def switch_channel(self, number_pressed, outputfile, timestamp):
@@ -188,7 +204,7 @@ class SignalProcessing():
         idx_channel = int(number_pressed) - 1 # -1 for Python indexing
         if idx_channel != self.channel:
             self.channel = idx_channel
-            line = str(timestamp) + ', Switched channel to ' + number_pressed + ' (' + self.channels[self.channel] +')'
+            line = str(timestamp) + ', Switched channel to ' + str(number_pressed) + ' (' + self.channels[self.channel] +')'
             stimhistory = open(outputfile, 'a') # Appending
             stimhistory.write(line + '\n')
             stimhistory.close()

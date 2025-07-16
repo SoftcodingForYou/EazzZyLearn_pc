@@ -1,9 +1,10 @@
 # Install all dependencies with "pip install -r ./requirements.txt"
 spectrum
-keyboard
+pyqt5
 pyserial
 sounddevice
 soundfile
 scipy
 matplotlib
 numpy
+python-osc

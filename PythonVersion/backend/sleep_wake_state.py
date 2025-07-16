@@ -1,8 +1,7 @@
-import numpy as np
-import parameters as p
-from threading import Thread
-import time
+import numpy            as np
 import scipy
+import parameters       as p
+from backend.disk_io    import DiskIO
 
 class SleepWakeState():
 
@@ -18,6 +17,9 @@ class SleepWakeState():
         # - How often the staging is done (self.satging_interval)
         # Important parameters for timing of the staging process
         # =================================================================
+        self.use_muse_sleep_classifier  = p.USE_MUSE_SLEEP_CLASSIFIER
+        self.current_muse_metrics       = None
+        self.muse_metric_map            = p.MUSE_METRIC_MAP
         self.last_sleep_stage_time      = 0
         self.last_wake_stage_time       = 0
         self.sleep_staging_interval     = p.SLEEP_STAGE_INTERVAL * 1000
@@ -32,9 +34,9 @@ class SleepWakeState():
         self.frequency_bands            = p.FREQUENCY_BANDS
         self.sleep_thresholds           = p.SLEEP_THRESHOLDS
         self.wake_thresholds            = p.WAKE_THRESHOLDS
-         # This is neccesary to use is_alive() method
-        self.sleep_thread               = Thread() 
-        self.wake_thread                = Thread()
+
+        self.disk_io                    = DiskIO(
+            p.MAX_BUFFERED_LINES, p.STAGE_FLUSH_INTERVAL, 'staging_thread')
 
 
     def master_stage_wake_and_sleep(self, v_wake, v_sleep, freq_range, 
@@ -70,53 +72,17 @@ class SleepWakeState():
             self.last_sleep_stage_time  = time_stamp
             run_sleep_staging           = True
 
-        # Wake Thread
         if run_wake_staging == True:
-            if not self.wake_thread.is_alive(): # If it is not alive, create a new one
-                self.wake_thread = Thread(name='stage_wake_thread',
-                    target=self.stage_wake_thread, 
-                    args=(v_wake, freq_range, output_file, time_stamp))
-                self.wake_thread.start()
-            else:
-                print('Skipped wake staging: Wake thread still active')
+            self.staging(v_wake, 'isawake', freq_range, output_file, time_stamp)
 
-        # Sleep Thread
         if run_sleep_staging == True:
-            if not self.sleep_thread.is_alive(): # If it is not alive, create a new one
-                self.sleep_thread = Thread(name='stage_sleep_thread',
-                    target=self.stage_sleep_thread, 
-                    args=(v_sleep, freq_range, output_file, time_stamp))
-                self.sleep_thread.start()
-            else:
-                print('Skipped sleep staging: Sleep thread still active')
-
-
-    def stage_wake_thread(self, v_wake, freq_range, output_file, time_stamp):
-        # =================================================================
-        # Call wake staging methods. The sleep timer after the computations
-        # is what prevent sthe code from breaking (specifically during 
-        # sleep staging).
-        # =================================================================
-        self.staging(v_wake, 'isawake', freq_range, output_file, time_stamp)
-
-
-    def stage_sleep_thread(self, v_sleep, freq_range, output_file, time_stamp):
-        # =================================================================
-        # Call sleep staging methods. The sleep timer after the 
-        # computations is what prevent sthe code from breaking 
-        # (specifically during sleep staging).
-        # =================================================================
-        self.staging(v_sleep, 'issws', freq_range, output_file, time_stamp)
+            self.staging(v_wake, 'issws', freq_range, output_file, time_stamp)
 
 
     def staging(self, v_wake, staging_what, freq_range, output_file,
         time_stamp):
 
-        # x_power, x_freqs    = self.power_spectr_multitaper(v_wake,
-        #     freq_range, self.sample_rate)
-        v_power, v_freqs    = self.power_spectr_welch(v_wake,
-            freq_range, self.sample_rate)
-
+        predictions             = {}
         # Get ratio thresholds of interest based on sleep or wake staging
         if staging_what == 'isawake':
             staging_ratios  = self.wake_thresholds
@@ -126,56 +92,95 @@ class SleepWakeState():
             line_base       = str(time_stamp) + ', Subject in SWS = '
         staging_ratios_keys = list(staging_ratios.keys())
 
-        # Get the stage prediction from different band ratios
-        predictions          = {}
-        for iRatio in range(len(staging_ratios_keys)):
-            
-            # Define paramaters (number/name of bands to compare, thresholds)
-            ratio_str       = staging_ratios_keys[iRatio]
-            ratio_thresold  = staging_ratios[ratio_str]
-            bands           = ratio_str.split("VS") # Has to generate a list
-        
-            predictions[ratio_str] = self.band_ratio_thresholding(v_power,
-                                v_freqs, bands, ratio_thresold)
+        if not self.use_muse_sleep_classifier:
+            v_power, v_freqs    = self.power_spectr_welch(v_wake,
+                freq_range, self.sample_rate)
 
-        # Take decision based on individual predictions and update workspace
-        indiv_predictions       = list(predictions.values())
-        if staging_what == 'isawake':
-            # if any(prediction == True for prediction in predictions.values()): # Seems too strict
-            # We take the average prediction as the final decision
-            if sum(indiv_predictions) >= len(indiv_predictions) / 2:
-                self.isawake    = True
-                line_add        = True
-            else:
-                self.isawake    = False
-                line_add        = False
-
-            # Check for false positive in awake staging because of movement 
-            # artifacts
-            # Update last awake stagings
-            self.prior_awake    = np.append(self.prior_awake, self.isawake)
-            self.prior_awake    = np.delete(self.prior_awake, 0)
-            # Get overall staging value: If >= 50% predicted awake = True,
-            # then we lock current stage into being awake
-            if ( np.sum(self.prior_awake) >= self.prior_awake.size / 2 and
-                self.isawake == False ):
-                self.isawake    = True
-                line_add        = str(line_add) + ' (False negative)'
+            # Get the stage prediction from different band ratios
+            for iRatio in range(len(staging_ratios_keys)):
                 
-        elif staging_what == 'issws':
-            # We take the average prediction as the final decision
-            if sum(indiv_predictions) >= len(indiv_predictions) / 2:
-            # if any(prediction == True for prediction in predictions.values()): # False positives with old values
-                self.issws      = True
-                line_add        = True
-            else:
-                self.issws      = False
-                line_add        = False
+                # Define paramaters (number/name of bands to compare, thresholds)
+                ratio_str       = staging_ratios_keys[iRatio]
+                ratio_thresold  = staging_ratios[ratio_str]
+                bands           = ratio_str.split("VS") # Has to generate a list
+            
+                predictions[ratio_str] = self.band_ratio_thresholding(v_power,
+                                    v_freqs, bands, ratio_thresold)
+
+            # Take decision based on individual predictions and update workspace
+            indiv_predictions       = list(predictions.values())
+            if staging_what == 'isawake':
+                # if any(prediction == True for prediction in predictions.values()): # Seems too strict
+                # We take the average prediction as the final decision
+                if sum(indiv_predictions) >= len(indiv_predictions) / 2:
+                    self.isawake    = True
+                    line_add        = True
+                else:
+                    self.isawake    = False
+                    line_add        = False
+
+                # Check for false positive in awake staging because of movement 
+                # artifacts
+                # Update last awake stagings
+                self.prior_awake    = np.append(self.prior_awake, self.isawake)
+                self.prior_awake    = np.delete(self.prior_awake, 0)
+                # Get overall staging value: If >= 50% predicted awake = True,
+                # then we lock current stage into being awake
+                if ( np.sum(self.prior_awake) >= self.prior_awake.size / 2 and
+                    self.isawake == False ):
+                    self.isawake    = True
+                    line_add        = str(line_add) + ' (False negative)'
+                    
+            elif staging_what == 'issws':
+                # We take the average prediction as the final decision
+                if sum(indiv_predictions) >= len(indiv_predictions) / 2:
+                # if any(prediction == True for prediction in predictions.values()): # False positives with old values
+                    self.issws      = True
+                    line_add        = True
+                else:
+                    self.issws      = False
+                    line_add        = False
+        elif self.current_muse_metrics is not None:
+            for key, value in self.muse_metric_map.items():
+                predictions[key] = self.current_muse_metrics[value]
+
+            is_unknown = len([val for val in predictions.values() if val != 0]) == 0 # Unknown when all stages are zeros
+            max_key = max(predictions, key=predictions.get)
+            if staging_what == 'issws':
+                if is_unknown or max_key != 'N3':
+                    self.issws = False
+                    line_add = False
+                else:
+                    self.issws = True
+                    line_add = True
+            elif staging_what == 'isawake':
+                if is_unknown or max_key != 'Wake':
+                    self.isawake = False
+                    line_add = False
+                else:
+                    self.isawake = True
+                    line_add = True
+        else:
+            return
 
         # Store staging on disk
         # -----------------------------------------------------------------
+        predictions = self._convert_numpy_values(predictions)
         line = line_base + str(line_add) + ' ' + str(predictions)
-        self.stage_write(line, output_file)
+        self.disk_io.line_store(line, output_file)
+
+
+    def _convert_numpy_values(self, predictions):
+        """Convert numpy values in predictions dict to native Python types"""
+        converted = {}
+        for key, value in predictions.items():
+            if hasattr(value, 'item'):  # numpy scalar
+                converted[key] = value.item()
+            elif isinstance(value, np.ndarray):  # numpy array
+                converted[key] = value.tolist()
+            else:
+                converted[key] = value
+        return converted
 
 
     def band_ratio_thresholding(self, power, freqs, bands, threshold_val):
@@ -203,7 +208,7 @@ class SleepWakeState():
             
             low                 = np.where(freqs < passband[1])[0]
             high                = np.where(freqs > passband[0])[0]
-            f_pass              = np.in1d(high, low)
+            f_pass              = np.isin(high, low)
             overlap             = high[np.where(f_pass == True)[0]]
             
             band_power          = np.mean(power[overlap])
@@ -221,7 +226,7 @@ class SleepWakeState():
                 
                 low             = np.where(freqs < passband[1])[0]
                 high            = np.where(freqs > passband[0])[0]
-                f_pass          = np.in1d(high, low)
+                f_pass          = np.isin(high, low)
                 overlap         = high[np.where(f_pass == True)[0]]
                 
                 band_power[iBand]= np.mean(power[overlap])
@@ -238,18 +243,6 @@ class SleepWakeState():
         return prediction
 
 
-    def stage_write(self, line, output_file):
-        # =================================================================
-        # Store on disk the stage information
-        # Note here that only when calling close(), the information gets
-        # indeed written into the file.
-        # =================================================================
-        self.stimhistory = open(output_file, 'a') # Appending
-        self.stimhistory.write(line + '\n')
-        self.stimhistory.close()
-        print(line[0:line.find(' {')]) # For us to follow
-
-
     def power_spectr_welch(self, whole_range_signal, freq_range, sample_rate):
 
         win = 4 * sample_rate # Lowest frequency of interest = 0.5 --> 2x low signal in window is optimal
@@ -259,7 +252,7 @@ class SleepWakeState():
         Fpass           = (freq_range[0], freq_range[1])
         f_highpass      = np.where(freqs >= Fpass[0])[0]
         f_lowpass       = np.where(freqs <= Fpass[-1])[0]
-        f_passband      = np.in1d(f_highpass, f_lowpass)
+        f_passband      = np.isin(f_highpass, f_lowpass)
         findx           = f_highpass[np.where(f_passband == True)[0]]
         
         power           = power[findx]

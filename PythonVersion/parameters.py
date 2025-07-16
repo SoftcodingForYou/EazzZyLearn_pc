@@ -1,15 +1,22 @@
+# Entrypoint device
+# -------------------------------------------------------------------------
+DEVICE          = {
+    "OpenBCI":  False,
+    "Muse":     True,
+}
+
 # Recording session information (to be set for each participant)
 # -------------------------------------------------------------------------
 
-OUTPUT_DIR      = './EazzZyLearn_output'
+OUTPUT_DIR      = f'./EazzZyLearn_output/YYYY_mm_dd'
 
 SUBJECT_INFO    = {
-    'name':         'Generic',                          # string (freely choses)
-    'age':          '00',                          # scalar (years)
-    'sex':          'Female',                          # Male or Female
+    'name':         'Generic', # string (freely choses)
+    'age':          '00', # scalar (years)
+    'sex':          'Female', # Male or Female
     'chosencue':    'gong',   # Sound to present during sleep
-    'background':   'Meditative_Mind_P1F9MiPr2Vs_short',        # Background sound to avoid silent intervals
-    'cueinterval':  '1',                                # float (minutes)
+    'background':   'Meditative_Mind_P1F9MiPr2Vs_short', # Background sound to avoid silent intervals
+    'cueinterval':  '1', # str (float-like: minutes)
     }
 
 
@@ -17,21 +24,19 @@ SUBJECT_INFO    = {
 # -------------------------------------------------------------------------
 
 # Number of channels to be used
-NUM_CHANNELS    = 8
+NUM_CHANNELS    = 4
 
 # Select channels of interest
 # Manually established list: to adapt if data structure changes
 ELEC            = {}
-ELEC["Fp2"]     = 0
-ELEC["Fp1"]     = 1
-ELEC["Cz"]      = 2
-ELEC["C4"]      = 3
-ELEC["C3"]      = 4
-ELEC["Pz"]      = 5
-ELEC["P4"]      = 6
-ELEC["P3"]      = 7
+ELEC["TP9"]     = 0
+ELEC["AF7"]     = 1
+ELEC["AF8"]     = 2
+ELEC["TP10"]    = 3
+# ELEC["Aux1"]    = 4
+# ELEC["Aux2"]    = 5
 
-IDX_ELEC        = ELEC["Fp2"]
+IDX_ELEC        = ELEC["AF7"]
 
 
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -64,16 +69,17 @@ SOUND_FORMAT   = '.wav'
 # # Streaming parameters
 # -------------------------------------------------------------------------
 
-SAMPLERATE      = 250
+SAMPLERATE      = 256
 PGA             = 24
 BAUDRATE        = 115200
 TIMEOUT         = None
+FLIP_SIGNAL     = False
 
 
 # # Streaming parameters (class Receiver)
 # -------------------------------------------------------------------------
 
-IP              = 'localhost'
+IP              = '0.0.0.0'  # Listen on all interfaces to receive from Muse-Lab
 PORT            = 12345
 
 
@@ -129,6 +135,18 @@ LOCKING_LENGTH          = 120   # scalar (s) If during the LOCKING_LENGTH
                                 # Awake to False and SWS to True
 
 
+# Muse Sleep Classifier Configuration
+# -------------------------------------------------------------------------
+USE_MUSE_SLEEP_CLASSIFIER = True
+MUSE_METRIC_MAP = {
+    "Wake": 12,
+    "N1":   13,
+    "N2":   14,
+    "N3":   15,
+    "REM":  16
+}
+
+
 # Filter parameters
 # -------------------------------------------------------------------------
 
@@ -139,7 +157,7 @@ FILT_ORDER              = 3
 # -------------------------------------------------------------------------
 FREQUENCY_BANDS = {
     'Delta':    (0.5, 4),
-    'SlowDelta':(0.5, 2),
+    'SlowDelta':(0.5, 2), # Slow delta (slow oscillation component) was used when upstate stimulation relied on Sine Wave fitting. The Slow Delta component is currently not being used
     'Alpha':    (8,   12),
     'Spindle':  (12,  16),
     'Theta':    (4,   8),
@@ -185,7 +203,12 @@ WAKE_THRESHOLDS = {
 # * quality: (o), false negatives; (+), good; (++), perfect 
 
 
-# Output file information
+# Output file management
 # -------------------------------------------------------------------------
 
+MAX_BUFFERED_LINES = 1000 # int
+DATA_FLUSH_INTERVAL = 30 # seconds (float)
+PREDICTION_FLUSH_INTERVAL = 5 # seconds (float)
+STIM_FLUSH_INTERVAL = 2 # seconds (float)
+STAGE_FLUSH_INTERVAL = 5 # seconds (float)
 ENCODING = 'utf-8'

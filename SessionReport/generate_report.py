@@ -1,7 +1,7 @@
 # Parameters
 # =========================================================================
-input_dir               = 'path/to/EazzZyLearn/output'
-run_extraction          = True # True or False for long step to be done
+input_dir               = r'D:\NextcloudInteraxon\Research\DeepSleepStimulation\EazzZyLearn_output\YYYY_mm_dd\Generic'
+run_extraction          = False # True or False for long step to be done
 
 # Stims per hour (/X etimated hours of recordings in sleep study)
 stim_range              = [
@@ -27,7 +27,7 @@ from extract_data       import DataExtraction
 from var_storage        import VariableOnDisk
 from report_outputs     import GenerateOutputs
 data_extraction         = DataExtraction()
-var_storage             = VariableOnDisk()
+var_storage             = VariableOnDisk(storage_path=input_dir)
 
 
 # Begin report generation
