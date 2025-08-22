@@ -421,28 +421,32 @@ class DataExtraction():
                 switched_to.append(line[idx_start+1:idx_stop])
 
                 time_stamp = float(line_list[0])
-                time_switched.append(int(np.where(times == time_stamp)[0]))
+                time_switched.append(int(np.where(times == time_stamp)[0][-1]))
 
         signal_recomb = signal_default
-        for iSwitch in range(len(time_switched)):
+        if len(time_switched) > 0:
+            print(f"{len(time_switched)} channel switches detected. Recomposing signal ...")
+            for iSwitch in range(len(time_switched)):
 
-            if iSwitch == 0 and len(time_switched) > 1:
-                time_start = time_switched[iSwitch]
-                time_stop = time_switched[iSwitch+1]
-                idx_chan = [iC for iC in range(
-                    len(channels)) if switched_to[iSwitch] in channels[iC]]
+                if iSwitch == 0 and len(time_switched) > 1:
+                    time_start = time_switched[iSwitch]
+                    time_stop = time_switched[iSwitch+1]
+                    idx_chan = [iC for iC in range(
+                        len(channels)) if switched_to[iSwitch] in channels[iC]]
 
-                signal_channel = eeg_signal[idx_chan, :][0]
-                signal_recomb[time_start:time_stop] = signal_channel[time_start:time_stop]
+                    signal_channel = eeg_signal[idx_chan, :][0]
+                    signal_recomb[time_start:time_stop] = signal_channel[time_start:time_stop]
 
-            elif iSwitch == len(time_switched)-1:
-                time_start = time_switched[iSwitch]
-                time_stop = eeg_signal.shape[1]
-                idx_chan = [iC for iC in range(
-                    len(channels)) if switched_to[iSwitch] in channels[iC]]
+                elif iSwitch == len(time_switched)-1:
+                    time_start = time_switched[iSwitch]
+                    time_stop = eeg_signal.shape[1]
+                    idx_chan = [iC for iC in range(
+                        len(channels)) if switched_to[iSwitch] in channels[iC]]
 
-                signal_channel = eeg_signal[idx_chan, :][0]
-                signal_recomb[time_start:time_stop] = signal_channel[time_start:time_stop]
+                    signal_channel = eeg_signal[idx_chan, :][0]
+                    signal_recomb[time_start:time_stop] = signal_channel[time_start:time_stop]
+        
+            print(f"   Done")
 
         return signal_recomb, time_switched
 
