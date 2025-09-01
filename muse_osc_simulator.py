@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
 Offline Muse OSC Stream Simulator
-Loads offline EEG data from pickle files and streams it via OSC
+Loads offline EEG data from CSV files and streams it via OSC
 to simulate a real Muse device for EazzZyLearn testing.
 """
 
-import pickle
 import numpy as np
+import pandas as pd
 import time
 import sys
 import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QLabel, QFileDialog,
                             QProgressBar, QSlider, QCheckBox, QDialog,
-                            QLineEdit, QGridLayout, QMessageBox)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+                            QLineEdit, QGridLayout, QMessageBox, QProgressDialog)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont
 from pythonosc import udp_client
 from threading import Event
@@ -56,10 +56,17 @@ class StreamingThread(QThread):
                 # Send EEG data
                 self.simulator.osc_client.send_message("/eeg", sample.tolist())
                 
-                # Send sleep scores if available
+                # Send sleep scores if available as muse_metrics array
                 if self.simulator.sleep_scores is not None and self.simulator.current_index < len(self.simulator.sleep_scores):
-                    sleep_stage = self.simulator.sleep_scores[self.simulator.current_index]
-                    self.simulator.osc_client.send_message("/muse_metrics", [sleep_stage])
+                    # Create array with at least 17 elements (indices 0-16)
+                    muse_metrics = [0.0] * 17
+                    
+                    # Set the probability for the current sleep stage to 1.0
+                    sleep_stage_idx = self.simulator.sleep_scores[self.simulator.current_index]
+                    if 12 <= sleep_stage_idx <= 16:  # Valid sleep stage indices
+                        muse_metrics[sleep_stage_idx] = 1.0
+                    
+                    self.simulator.osc_client.send_message("/muse_metrics", muse_metrics)
                 
                 self.simulator.current_index += 1
                 
@@ -121,6 +128,32 @@ class OSCSettingsDialog(QDialog):
         return self.ip_input.text(), self.port_input.text()
 
 
+class FileLoadingThread(QThread):
+    """Thread for loading CSV files without blocking the UI."""
+    loading_complete = pyqtSignal(bool, str)
+    progress_update = pyqtSignal(str)
+    
+    def __init__(self, simulator, load_type):
+        super().__init__()
+        self.simulator = simulator
+        self.load_type = load_type  # 'csv' or specific file type
+        
+    def run(self):
+        """Load files in background thread."""
+        try:
+            if self.load_type == 'csv':
+                self.progress_update.emit("Loading EEG data...")
+                success = self.simulator.load_csv_files()
+                if success:
+                    self.loading_complete.emit(True, "CSV files loaded successfully")
+                else:
+                    self.loading_complete.emit(False, "Failed to load CSV files")
+            else:
+                self.loading_complete.emit(False, "Unknown load type")
+        except Exception as e:
+            self.loading_complete.emit(False, str(e))
+
+
 class MuseOSCSimulator(QMainWindow):
     """Main window for the Muse OSC Stream Simulator."""
     
@@ -140,6 +173,20 @@ class MuseOSCSimulator(QMainWindow):
         
         self.streaming_thread = None
         
+        # File paths
+        self.eeg_filepath = None
+        self.ss_filepath = None
+        
+        # Sleep stage mapping from parameters.py
+        self.sleep_stage_map = {
+            "W": 12,   # Wake
+            "Wake": 12,
+            "N1": 13,
+            "N2": 14,
+            "N3": 15,
+            "REM": 16
+        }
+        
         self.init_ui()
         
     def init_ui(self):
@@ -156,21 +203,38 @@ class MuseOSCSimulator(QMainWindow):
         layout = QVBoxLayout()
         central_widget.setLayout(layout)
         
-        # File section
-        file_layout = QHBoxLayout()
-        self.load_button = QPushButton("Load Pickle File")
-        self.load_button.clicked.connect(self.load_file_dialog)
-        file_layout.addWidget(self.load_button)
+        # File section - EEG CSV
+        eeg_file_layout = QHBoxLayout()
+        self.load_eeg_button = QPushButton("Load EEG CSV")
+        self.load_eeg_button.clicked.connect(self.load_eeg_file_dialog)
+        eeg_file_layout.addWidget(self.load_eeg_button)
         
-        self.file_label = QLabel("No file loaded")
-        file_layout.addWidget(self.file_label)
-        file_layout.addStretch()
+        self.eeg_file_label = QLabel("No EEG file loaded")
+        eeg_file_layout.addWidget(self.eeg_file_label)
+        eeg_file_layout.addStretch()
         
+        layout.addLayout(eeg_file_layout)
+        
+        # File section - Sleep Stage CSV
+        ss_file_layout = QHBoxLayout()
+        self.load_ss_button = QPushButton("Load Sleep Stage CSV")
+        self.load_ss_button.clicked.connect(self.load_ss_file_dialog)
+        ss_file_layout.addWidget(self.load_ss_button)
+        
+        self.ss_file_label = QLabel("No sleep stage file loaded (optional)")
+        ss_file_layout.addWidget(self.ss_file_label)
+        ss_file_layout.addStretch()
+        
+        layout.addLayout(ss_file_layout)
+        
+        # Settings button
+        settings_layout = QHBoxLayout()
+        settings_layout.addStretch()
         self.settings_button = QPushButton("OSC Settings")
         self.settings_button.clicked.connect(self.show_osc_settings)
-        file_layout.addWidget(self.settings_button)
+        settings_layout.addWidget(self.settings_button)
         
-        layout.addLayout(file_layout)
+        layout.addLayout(settings_layout)
         
         # Status section
         self.status_label = QLabel("Ready")
@@ -236,7 +300,7 @@ class MuseOSCSimulator(QMainWindow):
         
         # Info section
         info_text = (
-            "This simulator streams pickle file data via OSC to simulate a Muse device.\n"
+            "This simulator streams CSV file data via OSC to simulate a Muse device.\n"
             f"OSC messages are sent to {self.target_ip}:{self.target_port}\n"
             "Ensure EazzZyLearn is running and listening on the same port."
         )
@@ -271,49 +335,97 @@ class MuseOSCSimulator(QMainWindow):
             }
         """)
     
-    def load_pickle_file(self, filepath):
-        """Load data from pickle file."""
+    def load_csv_files(self, eeg_filepath=None, ss_filepath=None):
+        """Load data from CSV files."""
         try:
-            with open(filepath, 'rb') as f:
-                data_dict = pickle.load(f)
+            # Use stored file paths if not provided
+            if eeg_filepath:
+                self.eeg_filepath = eeg_filepath
+            if ss_filepath:
+                self.ss_filepath = ss_filepath
+                
+            # Check if we have EEG data to load
+            if not self.eeg_filepath:
+                return False
             
-            # Validate required fields
-            if 'data' not in data_dict:
-                raise ValueError("Pickle file must contain 'data' field")
+            # Emit progress update if in thread
+            if hasattr(self, 'loading_thread') and self.loading_thread and self.loading_thread.isRunning():
+                self.loading_thread.progress_update.emit(f"Reading EEG file: {os.path.basename(self.eeg_filepath)}...")
+                
+            # Load EEG data
+            eeg_df = pd.read_csv(self.eeg_filepath)
             
-            self.data = np.array(data_dict['data'])
+            # Extract timestamps and EEG channels
+            self.timestamps = eeg_df['ts'].values
             
-            # Handle optional fields
-            if 'unix_ts' in data_dict:
-                self.timestamps = np.array(data_dict['unix_ts'])
+            # Get EEG channels (ch1-ch6 or ch1-ch4)
+            channel_cols = [col for col in eeg_df.columns if col.startswith('ch')]
+            eeg_data = eeg_df[channel_cols].values
+            
+            # Pad to 8 channels (Muse standard)
+            if eeg_data.shape[1] < 8:
+                padding = np.zeros((eeg_data.shape[0], 8 - eeg_data.shape[1]))
+                self.data = np.hstack([eeg_data, padding])
             else:
-                # Generate timestamps based on sample rate
-                num_samples = self.data.shape[0]
-                self.timestamps = np.arange(num_samples) / self.sample_rate
+                self.data = eeg_data[:, :8]
             
-            if 'sleep_scores' in data_dict:
-                self.sleep_scores = np.array(data_dict['sleep_scores'])
+            # Load sleep stage file if available
+            if self.ss_filepath and os.path.exists(self.ss_filepath):
+                # Emit progress update if in thread
+                if hasattr(self, 'loading_thread') and self.loading_thread and self.loading_thread.isRunning():
+                    self.loading_thread.progress_update.emit(f"Reading sleep stage file: {os.path.basename(self.ss_filepath)}...")
+                    
+                ss_df = pd.read_csv(self.ss_filepath)
+                
+                # Create sleep scores array matching EEG samples
+                self.sleep_scores = np.zeros(len(self.data), dtype=int)
+                
+                # Emit progress update if in thread
+                if hasattr(self, 'loading_thread') and self.loading_thread and self.loading_thread.isRunning():
+                    self.loading_thread.progress_update.emit("Synchronizing sleep stages with EEG data...")
+                
+                # Interpolate sleep stages to match EEG timestamps
+                if 'timestamps' in ss_df.columns:
+                    ss_timestamps = ss_df['timestamps'].values
+                    sleep_stages = ss_df['sleep_stage'].values
+                    
+                    # Map sleep stages to indices
+                    stage_indices = [self.sleep_stage_map.get(stage, 12) for stage in sleep_stages]
+                    
+                    # For each EEG timestamp, find the closest sleep stage
+                    for i, eeg_ts in enumerate(self.timestamps):
+                        # Find the closest timestamp in sleep stages
+                        idx = np.argmin(np.abs(ss_timestamps - eeg_ts))
+                        # Only use if within reasonable time window (e.g., 30 seconds)
+                        if abs(ss_timestamps[idx] - eeg_ts) < 30:
+                            self.sleep_scores[i] = stage_indices[idx]
+                        else:
+                            self.sleep_scores[i] = 12  # Default to Wake if too far
+                else:
+                    # If no timestamps, assume uniform distribution
+                    sleep_stages = ss_df['sleep_stage'].values
+                    stage_indices = [self.sleep_stage_map.get(stage, 12) for stage in sleep_stages]
+                    
+                    # Repeat each sleep stage for 30 seconds worth of samples
+                    samples_per_stage = 30 * self.sample_rate  # 30 seconds at 256Hz
+                    
+                    for i, stage_idx in enumerate(stage_indices):
+                        start_idx = i * samples_per_stage
+                        end_idx = min((i + 1) * samples_per_stage, len(self.sleep_scores))
+                        if start_idx < len(self.sleep_scores):
+                            self.sleep_scores[start_idx:end_idx] = stage_idx
             else:
                 self.sleep_scores = None
+                if self.ss_filepath:
+                    print(f"Sleep stage file not found: {self.ss_filepath}")
             
             # Reset playback position
             self.current_index = 0
             
-            # Ensure data is 2D (samples x channels)
-            if len(self.data.shape) == 1:
-                self.data = self.data.reshape(-1, 1)
-            
-            # Pad to 8 channels if necessary
-            if self.data.shape[1] < 8:
-                padding = np.zeros((self.data.shape[0], 8 - self.data.shape[1]))
-                self.data = np.hstack([self.data, padding])
-            elif self.data.shape[1] > 8:
-                self.data = self.data[:, :8]
-            
             return True
             
         except Exception as e:
-            print(f"Error loading pickle file: {e}")
+            print(f"Error loading CSV files: {e}")
             return False
     
     def connect_osc(self):
@@ -325,37 +437,97 @@ class MuseOSCSimulator(QMainWindow):
             print(f"Error connecting OSC: {e}")
             return False
     
-    def load_file_dialog(self):
-        """Open file dialog to load pickle file."""
+    def load_eeg_file_dialog(self):
+        """Open file dialog to load EEG CSV file."""
         filepath, _ = QFileDialog.getOpenFileName(
             self,
-            "Select pickle file",
+            "Select EEG CSV file",
             "",
-            "Pickle files (*.pkl);;All files (*.*)"
+            "CSV files (*_eeg.csv *.csv);;All files (*.*)"
         )
         
         if filepath:
-            if self.load_pickle_file(filepath):
-                filename = os.path.basename(filepath)
-                self.file_label.setText(f"Loaded: {filename}")
-                
-                # Update status
-                num_samples = len(self.data)
-                num_channels = self.data.shape[1]
-                duration = num_samples / self.sample_rate
-                
-                status = f"Ready: {num_samples} samples, {num_channels} channels, {duration:.1f}s"
-                self.status_label.setText(status)
-                
-                # Reset progress
-                self.progress_bar.setValue(0)
-                
-                # Enable play button
-                self.play_button.setEnabled(True)
-                
-                QMessageBox.information(self, "Success", f"Loaded {filename}\n{status}")
-            else:
-                QMessageBox.critical(self, "Error", "Failed to load file")
+            self.eeg_filepath = filepath
+            self.eeg_file_label.setText(f"EEG: {os.path.basename(filepath)}")
+            self.update_data_loading()
+    
+    def load_ss_file_dialog(self):
+        """Open file dialog to load sleep stage CSV file."""
+        filepath, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Sleep Stage CSV file",
+            "",
+            "CSV files (*_ss.csv *.csv);;All files (*.*)"
+        )
+        
+        if filepath:
+            self.ss_filepath = filepath
+            self.ss_file_label.setText(f"Sleep: {os.path.basename(filepath)}")
+            self.update_data_loading()
+    
+    def update_data_loading(self):
+        """Update data loading when files are selected."""
+        if self.eeg_filepath:
+            # Create progress dialog
+            self.progress_dialog = QProgressDialog(
+                "Loading CSV files...\n\nThis may take a while for large files.",
+                None,  # No cancel button
+                0, 0,  # Indeterminate progress
+                self
+            )
+            self.progress_dialog.setWindowTitle("Loading Data")
+            self.progress_dialog.setWindowModality(Qt.WindowModal)
+            self.progress_dialog.setMinimumDuration(0)  # Show immediately
+            self.progress_dialog.show()
+            
+            # Process events to ensure dialog appears
+            QApplication.processEvents()
+            
+            # Create and start loading thread
+            self.loading_thread = FileLoadingThread(self, 'csv')
+            self.loading_thread.loading_complete.connect(self.on_loading_complete)
+            self.loading_thread.progress_update.connect(self.on_loading_progress)
+            self.loading_thread.start()
+    
+    def on_loading_progress(self, message):
+        """Update progress dialog with loading status."""
+        if hasattr(self, 'progress_dialog'):
+            self.progress_dialog.setLabelText(message)
+            QApplication.processEvents()
+    
+    def on_loading_complete(self, success, message):
+        """Handle completion of file loading."""
+        # Close progress dialog
+        if hasattr(self, 'progress_dialog'):
+            self.progress_dialog.close()
+            self.progress_dialog = None
+        
+        if success:
+            self.update_status_after_load()
+        else:
+            QMessageBox.critical(self, "Error", f"Failed to load CSV files: {message}")
+    
+    def update_status_after_load(self):
+        """Update status and UI after successful data loading."""
+        if self.data is not None:
+            # Update status
+            num_samples = len(self.data)
+            num_channels = self.data.shape[1]
+            duration = num_samples / self.sample_rate
+            
+            status = f"Ready: {num_samples} samples, {num_channels} channels, {duration:.1f}s"
+            if self.sleep_scores is not None:
+                status += " (with sleep stages)"
+            self.status_label.setText(status)
+            
+            # Reset progress
+            self.progress_bar.setValue(0)
+            self.current_index = 0
+            
+            # Enable play button
+            self.play_button.setEnabled(True)
+            
+            QMessageBox.information(self, "Success", status)
     
     def start_streaming(self):
         """Start streaming in a separate thread."""
@@ -439,7 +611,7 @@ class MuseOSCSimulator(QMainWindow):
                 self.target_port = int(port)
                 # Update info label
                 info_text = (
-                    "This simulator streams pickle file data via OSC to simulate a Muse device.\n"
+                    "This simulator streams CSV file data via OSC to simulate a Muse device.\n"
                     f"OSC messages are sent to {self.target_ip}:{self.target_port}\n"
                     "Ensure EazzZyLearn is running and listening on the same port."
                 )
