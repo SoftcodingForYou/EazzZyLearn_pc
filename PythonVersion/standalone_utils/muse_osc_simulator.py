@@ -56,17 +56,31 @@ class StreamingThread(QThread):
                 # Send EEG data
                 self.simulator.osc_client.send_message("/eeg", sample.tolist())
                 
-                # Send sleep scores if available as muse_metrics array
+                # Send sleep scores at 1 Hz (once per second = every 256 samples)
                 if self.simulator.sleep_scores is not None and self.simulator.current_index < len(self.simulator.sleep_scores):
-                    # Create array with at least 17 elements (indices 0-16)
-                    muse_metrics = [0.0] * 17
-                    
-                    # Set the probability for the current sleep stage to 1.0
-                    sleep_stage_idx = self.simulator.sleep_scores[self.simulator.current_index]
-                    if 12 <= sleep_stage_idx <= 16:  # Valid sleep stage indices
-                        muse_metrics[sleep_stage_idx] = 1.0
-                    
-                    self.simulator.osc_client.send_message("/muse_metrics", muse_metrics)
+                    # Only send muse_metrics once per second (every 256 samples at 256Hz)
+                    if self.simulator.current_index % 256 == 0:
+                        # Create array with at least 17 elements (indices 0-16)
+                        muse_metrics = [0.0] * 17
+                        
+                        # Get the sleep stage for this second
+                        sleep_stage_idx = self.simulator.sleep_scores[self.simulator.current_index]
+                        
+                        # Set probabilities: 1.0 for the active stage, 0.0 for others
+                        # Indices 12-16 correspond to Wake, N1, N2, N3, REM
+                        if 12 <= sleep_stage_idx <= 16:  # Valid sleep stage indices
+                            # First ensure all sleep-related indices are 0.0
+                            for i in range(12, 17):
+                                muse_metrics[i] = 0.0
+                            # Then set the current stage to 1.0
+                            muse_metrics[sleep_stage_idx] = 1.0
+                        else:
+                            # Default to Wake if invalid stage
+                            for i in range(12, 17):
+                                muse_metrics[i] = 0.0
+                            muse_metrics[12] = 1.0  # Wake
+                        
+                        self.simulator.osc_client.send_message("/muse_metrics", muse_metrics)
                 
                 self.simulator.current_index += 1
                 
@@ -169,7 +183,7 @@ class MuseOSCSimulator(QMainWindow):
         self.sleep_scores = None
         self.current_index = 0
         self.playback_speed = 1.0
-        self.flip_signal = True  # Default to flipped as per parameters
+        self.flip_signal = False  # Default to flipped as per parameters
         
         self.streaming_thread = None
         
@@ -275,7 +289,7 @@ class MuseOSCSimulator(QMainWindow):
         speed_layout.addWidget(QLabel("Playback Speed:"))
         
         self.speed_slider = QSlider(Qt.Horizontal)
-        self.speed_slider.setRange(10, 1000)  # 0.1x to 10x (multiplied by 100)
+        self.speed_slider.setRange(10, 300)  # 0.1x to 3x (multiplied by 100)
         self.speed_slider.setValue(100)  # 1.0x
         self.speed_slider.setTickPosition(QSlider.TicksBelow)
         self.speed_slider.setTickInterval(100)
@@ -292,7 +306,7 @@ class MuseOSCSimulator(QMainWindow):
         # Signal options
         options_layout = QHBoxLayout()
         self.flip_checkbox = QCheckBox("Flip Signal (*-1)")
-        self.flip_checkbox.setChecked(True)  # Default to flipped
+        self.flip_checkbox.setChecked(self.flip_signal)  # Default to flipped
         self.flip_checkbox.stateChanged.connect(self.update_flip_signal)
         options_layout.addWidget(self.flip_checkbox)
         options_layout.addStretch()
@@ -357,17 +371,18 @@ class MuseOSCSimulator(QMainWindow):
             
             # Extract timestamps and EEG channels
             self.timestamps = eeg_df['ts'].values
+            self.timestamps = self.timestamps - self.timestamps[0]
             
             # Get EEG channels (ch1-ch6 or ch1-ch4)
             channel_cols = [col for col in eeg_df.columns if col.startswith('ch')]
             eeg_data = eeg_df[channel_cols].values
             
-            # Pad to 8 channels (Muse standard)
-            if eeg_data.shape[1] < 8:
-                padding = np.zeros((eeg_data.shape[0], 8 - eeg_data.shape[1]))
+            # Pad to 6 channels (Muse standard)
+            if eeg_data.shape[1] < 6:
+                padding = np.zeros((eeg_data.shape[0], 6 - eeg_data.shape[1]))
                 self.data = np.hstack([eeg_data, padding])
             else:
-                self.data = eeg_data[:, :8]
+                self.data = eeg_data[:, :6]
             
             # Load sleep stage file if available
             if self.ss_filepath and os.path.exists(self.ss_filepath):
@@ -387,6 +402,7 @@ class MuseOSCSimulator(QMainWindow):
                 # Interpolate sleep stages to match EEG timestamps
                 if 'timestamps' in ss_df.columns:
                     ss_timestamps = ss_df['timestamps'].values
+                    ss_timestamps = ss_timestamps - ss_timestamps[0]
                     sleep_stages = ss_df['sleep_stage'].values
                     
                     # Map sleep stages to indices
