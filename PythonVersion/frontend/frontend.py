@@ -1,4 +1,6 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QComboBox, QLabel, QCheckBox
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                            QPushButton, QComboBox, QLabel, QCheckBox,
+                            QMenuBar, QMenu, QAction, QMessageBox)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 import sys
@@ -46,6 +48,9 @@ class Frontend(QMainWindow):
         icon_path = os.path.join(os.path.dirname(__file__), 'assets', 'icon.png')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
+        
+        # Create menu bar
+        self.create_menu_bar()
 
         # Create central widget and layout
         central_widget = QWidget()
@@ -116,6 +121,65 @@ class Frontend(QMainWindow):
         self.force_button.setProperty("active", False)
         self.stop_button.setProperty("active", False)
         self.set_stylesheet()
+    
+    def create_menu_bar(self):
+        """Create the menu bar with File and Settings menus."""
+        menubar = self.menuBar()
+        
+        # File menu
+        file_menu = menubar.addMenu('File')
+        
+        # Settings action
+        settings_action = QAction('Session Settings...', self)
+        settings_action.setShortcut('Ctrl+S')
+        settings_action.triggered.connect(self.show_settings_dialog)
+        file_menu.addAction(settings_action)
+        
+        file_menu.addSeparator()
+        
+        # Exit action
+        exit_action = QAction('Exit', self)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # Help menu
+        help_menu = menubar.addMenu('Help')
+        
+        # About action
+        about_action = QAction('About', self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+    
+    def show_settings_dialog(self):
+        """Show the settings dialog for runtime configuration."""
+        from frontend.settings_dialog import SettingsDialog
+        
+        # Warn user if recording is in progress
+        if hasattr(self, 'backend') and hasattr(self.backend, 'monitor_running'):
+            if self.backend.monitor_running:
+                reply = QMessageBox.warning(self, 'Recording in Progress',
+                                          'A recording session is currently active. '
+                                          'Changing settings now will only affect the next session. '
+                                          'Continue?',
+                                          QMessageBox.Yes | QMessageBox.No,
+                                          QMessageBox.No)
+                if reply != QMessageBox.Yes:
+                    return
+        
+        dialog = SettingsDialog(self)
+        if dialog.exec_() == SettingsDialog.Accepted:
+            QMessageBox.information(self, 'Settings Updated',
+                                  'Settings have been updated. '
+                                  'They will take effect in the next session.')
+    
+    def show_about(self):
+        """Show about dialog."""
+        QMessageBox.about(self, 'About EazzZyLearn',
+                        'EazzZyLearn v2025.06\n\n'
+                        'Real-time closed-loop neurofeedback system\n'
+                        'for sleep research and memory consolidation.\n\n'
+                        'Powered by Muse EEG technology.')
 
     def set_stylesheet(self):
         """Set the stylesheet for the buttons"""
@@ -210,11 +274,13 @@ class Frontend(QMainWindow):
 
     def update_status_text(self, text):
         """Update the status label text"""
-        self.status_label.setText(f"{text}")
+        if not self.window_closed and self.status_label:
+            self.status_label.setText(f"{text}")
 
     def update_speed_text(self, text):
         """Update the speed label text"""
-        self.speed_label.setText(f"{text}")
+        if not self.window_closed and self.speed_label:
+            self.speed_label.setText(f"{text}")
 
 def main():
     app = QApplication(sys.argv)
