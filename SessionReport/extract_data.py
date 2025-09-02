@@ -131,7 +131,8 @@ class DataExtraction():
         # Extract slow wave signals
         print('Filtering signals ...')
         s_order = 3
-        line_free = self.filter_signal(eeg_monitor, (49, 51),
+        line_noise = (49, 61)
+        line_free = self.filter_signal(eeg_monitor, line_noise,
                                        s_fs, s_order, "bandstop")
         signal_delta = self.filter_signal(line_free, (0.5, 4),
                                           s_fs, s_order, "bandpass")

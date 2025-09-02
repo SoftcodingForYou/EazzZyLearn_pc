@@ -149,7 +149,7 @@ class GenerateOutputs():
         freq_range_whole        = [0.1, 45]
         freq_range_delta        = [0.5, 4]
         freq_range_slowdelta    = [0.5, 2]
-        freq_range_noise        = [49, 51]
+        freq_range_noise        = [49, 61]
         line_free               = self.filter_signal(raw_signal,
                                     freq_range_noise, self.sfr, filt_order, 'stop')
         whole_signal            = self.filter_signal(np.transpose(line_free),
@@ -260,7 +260,7 @@ class GenerateOutputs():
         freq_range_whole        = [0.1, 45]
         freq_range_delta        = [0.5, 4]
         freq_range_slowdelta    = [0.5, 2]
-        freq_range_noise        = [49, 51]
+        freq_range_noise        = [49, 61]
         line_free               = self.filter_signal(raw_signal,
                                     freq_range_noise, self.sfr, filt_order, 'stop')
         whole_signal            = self.filter_signal(np.transpose(line_free),

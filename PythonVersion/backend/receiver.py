@@ -52,7 +52,7 @@ class Receiver:
         self.receiver_thread = Thread(
             target=self.fill_buffer,
             name='receiver_thread',
-            daemon=False)
+            daemon=True) # Make daemon so it doesn't block program exit
         
         # Initialize zeros buffer and time stamps
         self.buffer         = self.prep_buffer(self.num_channels, self.buffer_length)

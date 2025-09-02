@@ -164,7 +164,7 @@ FREQUENCY_BANDS = {
     'Beta':     (12,  40),
     'Gamma':    (25,  45),
     'Whole':    (0.1, 45),
-    'LineNoise':(49,  51)}
+    'LineNoise':(49,  61)} # We cover the 50 Hz and 60 Hz bands since we won't use any frequencies in between anyways
 
 
 # Evaluated on n=46 EGI HGSC128 datasets using Fp1:

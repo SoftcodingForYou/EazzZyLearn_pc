@@ -216,7 +216,7 @@ class Frontend(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event"""
-        from PyQt5.QtWidgets import QMessageBox
+        from PyQt5.QtWidgets import QMessageBox, QApplication
         
         reply = QMessageBox.question(self, 'Confirm Exit',
                                    'Are you sure you want to exit?',
@@ -225,9 +225,18 @@ class Frontend(QMainWindow):
         
         if reply == QMessageBox.Yes:
             self.window_closed = True
-            time.sleep(1) # Give time to pick up `window_closed` change by backend
+            # Give backend time to detect window_closed flag
+            time.sleep(0.5)
+            # Force stop if backend exists and hasn't stopped yet
+            if hasattr(self, 'backend') and self.backend and not self.backend.stop:
+                print("Forcing backend shutdown...")
+                self.backend.monitor_running = False
+                self.backend.stop_receiver()
+                time.sleep(0.5)  # Give time for threads to cleanup
             print("GUI stopped")
             event.accept()  # Accept the close event
+            # Ensure application terminates
+            QApplication.quit()
         else:
             event.ignore()  # Ignore the close event
 
