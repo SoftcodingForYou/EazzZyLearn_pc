@@ -38,15 +38,18 @@ class DataExtraction():
 
         # Extract header
         # -----------------------------------------------------------------
+        print("Extracting header information ...")
         with open(os.path.join(pathdata, eeg_files[0]), 'r', encoding='utf8') as file:
             lines = file.readlines()
         eeg_info = lines[0]  # Header information of the eeg files
         eeg_info = self.extract_hdr_info(eeg_info)
         s_fs = int(eeg_info["sample freq"])
+        print('   Done')
 
         # Extract EEG signals (Pool the information in the different files)
         # -----------------------------------------------------------------
         # New files have start time as zero. We correct times relative to previous files
+        print('Pooling file chunks ...')
         eeg_lat_shift = 0
         eeg_out = []
         pred_out = []
@@ -80,9 +83,11 @@ class DataExtraction():
             if not is_unix_timestamps:
                 eeg_lat_shift = last_timestamp
             t_file_breaks.append(last_timestamp)
+        print('   Done')
 
         # Build EEG signal and time stamps
         # -----------------------------------------------------------------
+        print('Extracting signal arrays ...')
         number_elecs = len(eeg_info['electrodes'].values())
         eeg_data = np.zeros((number_elecs, len(eeg_out)))
         times = np.zeros((len(eeg_out)))
@@ -116,12 +121,15 @@ class DataExtraction():
         # samples and forwards sample-by-sample to our algorithm.
 
         # Extract monitored signal (including channel switches)
+        print('Reconstructing real time channel')
         channels = list(eeg_info["electrodes"].keys())
         default_channel = channels[eeg_info["used elec"]]
         eeg_monitor, t_switches = self.extract_channel(
             eeg_data, times, channels, default_channel, stim_out)
+        print('   Done')
 
         # Extract slow wave signals
+        print('Filtering signals ...')
         s_order = 3
         line_free = self.filter_signal(eeg_monitor, (49, 51),
                                        s_fs, s_order, "bandstop")
@@ -129,8 +137,10 @@ class DataExtraction():
                                           s_fs, s_order, "bandpass")
         signal_SO = self.filter_signal(line_free, (0.5, 2),
                                        s_fs, s_order, "bandpass")
+        print('   Done')
 
         # Extract predictions (downstate and upstate timestamps)
+        print('Extracting slow wave predictions ...')
         predictions = []
         exclude_pred = False
         for iPred in range(len(pred_out)):
@@ -147,8 +157,10 @@ class DataExtraction():
         pred = self.extract_prediction_times(
             signal_delta, signal_SO, times, predictions, s_fs)
         pred = self.select_predictions(pred, s_fs)
+        print('   Done')
 
         # Extract stimulations
+        print('Extracting stimulations ...')
         stimulations = []
         for iStim in range(len(stim_out)):
             line = stim_out[iStim]  # Extract row
@@ -165,8 +177,10 @@ class DataExtraction():
 
         stim = self.extract_stimulation_times(
             signal_delta, signal_SO, times, stimulations, s_fs)
+        print('   Done')
 
         # Extract sleep/wake stagings
+        print('Extracting sleep scores ...')
         wake_stagings = []
         sws_stagins = []
         for iStage in range(len(stage_out)):
@@ -177,9 +191,11 @@ class DataExtraction():
                 wake_stagings.append(line)
 
         sleep = self.extract_stagings(times, sws_stagins, wake_stagings, s_fs)
+        print('   Done')
 
         # Build MNE data structure
         # -----------------------------------------------------------------
+        print('Building MNE data structure ...')
         channel_index = []
         channel_type = []
         channel_name = []
@@ -334,6 +350,7 @@ class DataExtraction():
         Subject["pred"] = pred
         Subject["stim"] = stim
         Subject["sleep"] = sleep
+        print('   Done')
 
         return Subject
     

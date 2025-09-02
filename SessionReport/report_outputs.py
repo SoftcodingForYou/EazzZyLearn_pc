@@ -23,7 +23,7 @@ class GenerateOutputs():
         self.input_dir          = input_dir
         self.stim_range         = [round(s) for s in stim_range]
         self.save_path          = os.path.join(self.input_dir, "Report")
-        self.output_template    = os.path.join(os.path.dirname(__file__), "Report_template_new.svg")
+        self.output_template    = os.path.join(os.path.dirname(__file__), "Report_template.svg")
 
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
@@ -555,32 +555,32 @@ class GenerateOutputs():
                 set_parameters["set_date"] = True
 
             # Set hypnogram
-            if "hypnogram.png" in line:
-                # line = line.replace("hypnogram.png", "{}".format(os.path.join(self.save_path, "hypnogram.png")))
+            if 'hypnogram.png' in line and 'xlink:href' in line:
+                line = line.replace("hypnogram.png", "{}".format(os.path.join(self.save_path, "hypnogram.png")))
                 lines[iL] = line
                 set_parameters["set_hypnogram"] = True
 
             # Set Slow Osc. grand average
-            if "grand_average.png" in line:
-                # line = line.replace("grand_average.png", "{}".format(os.path.join(self.save_path, "grand_average.png")))
+            if 'grand_average.png' in line and 'xlink:href' in line:
+                line = line.replace("grand_average.png", "{}".format(os.path.join(self.save_path, "grand_average.png")))
                 lines[iL] = line
                 set_parameters["set_grand_average"] = True
 
             # Set time-frequency
-            if "time_frequency.png" in line:
+            if 'time_frequency.png' in line and 'xlink:href' in line:
                 # line = line.replace("time_frequency.png", "{}".format(os.path.join(self.save_path, "time_frequency.png")))
                 lines[iL] = line
                 set_parameters["set_time_frequency"] = True
 
             # Set stimulation scale
-            if "stims_scaled.png" in line:
-                # line = line.replace("stims_scaled.png", "{}".format(os.path.join(self.save_path, "stims_scaled.png")))
+            if 'stims_scaled.png' in line and 'xlink:href' in line:
+                line = line.replace("stims_scaled.png", "{}".format(os.path.join(self.save_path, "stims_scaled.png")))
                 lines[iL] = line
                 set_parameters["set_stimulation_scale"] = True
 
             # Set delta component
-            if "delta_component.png" in line:
-                # line = line.replace("delta_component.png", "{}".format(os.path.join(self.save_path, "delta_component.png")))
+            if 'delta_component.png' in line and 'xlink:href' in line:
+                line = line.replace("delta_component.png", "{}".format(os.path.join(self.save_path, "delta_component.png")))
                 lines[iL] = line
                 set_parameters["set_delta_component"] = True
 
@@ -622,5 +622,5 @@ class GenerateOutputs():
 
         with open(os.path.join(
             self.save_path,
-            "Informe MemoRey " + self.subject_name + " {}".format(datetime.strftime(self.recording_date, "%d-%B-%Y")) + ".svg"), 'w', encoding='utf8') as f:
+            "Session Report " + self.subject_name + " {}".format(datetime.strftime(self.recording_date, "%d-%B-%Y")) + ".svg"), 'w', encoding='utf8') as f:
             f.write("".join(lines))
