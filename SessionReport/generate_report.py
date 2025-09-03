@@ -1,7 +1,7 @@
 # Parameters
 # =========================================================================
-input_dir               = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\PythonVersion\EazzZyLearn_output\2025_09_01_1820\Offline'
-run_extraction          = False # True or False for long step to be done
+input_dir               = r'path/to/EazzZyLearn/output/directory'
+run_extraction          = True # True or False for long step to be done
 
 # Stims per hour (/X etimated hours of recordings in sleep study)
 stim_range              = [
