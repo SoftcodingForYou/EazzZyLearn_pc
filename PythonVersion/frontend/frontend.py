@@ -92,6 +92,15 @@ class Frontend(QMainWindow):
             }
         """)
 
+        self.stage_label = QLabel("Unknown stage ...")
+        self.stage_label.setStyleSheet("""
+            QLabel {
+                color: #333333;
+                font-size: 12px;
+                padding: 5px;
+            }
+        """)
+
         # Add widgets to layout
         layout.addWidget(channel_label)
         layout.addWidget(self.channel_combo)
@@ -101,6 +110,7 @@ class Frontend(QMainWindow):
         layout.addWidget(self.stop_button)
         layout.addWidget(self.status_label)
         layout.addWidget(self.speed_label)
+        layout.addWidget(self.stage_label)
 
         # Connect button signals
         self.start_button.clicked.connect(self.start_stimulation)
@@ -290,6 +300,13 @@ class Frontend(QMainWindow):
         """Update the speed label text"""
         if not self.window_closed and self.speed_label:
             self.speed_label.setText(f"{text}")
+    
+    def update_sleep_states(self, is_awake, is_sws):
+        """Update the sleep state display"""
+        if not self.window_closed and self.status_label:
+            wake_text = f"Awake: {is_awake}"
+            deep_sleep_text = f"Deep Sleep: {is_sws}"
+            self.stage_label.setText(f"{wake_text} | {deep_sleep_text}")
 
 def main():
     app = QApplication(sys.argv)

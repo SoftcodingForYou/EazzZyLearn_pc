@@ -173,6 +173,9 @@ class Backend(Receiver):
                 self.gui.update_speed_text(f"Runtime speed: {monitor} Hz")
                 self.monitor_iterations = 0
 
+            # Update sleep states display
+            self.gui.update_sleep_states(self.Stg.isawake, self.Stg.issws)
+
             dt = datetime.fromtimestamp(self.current_time/1000) # Needs to be seconds
             formatted_time = dt.strftime("%H:%M:%S")
             self.gui.update_status_text(f"Last samples received: {formatted_time}")
