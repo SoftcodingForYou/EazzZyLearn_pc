@@ -165,7 +165,9 @@ class PredictSlowOscillation:
             return
         else:
             self.stim_at_stamp = self.correct_stim_time(stim_at_stamp,
-                cue_duration)
+                cue_duration)   # Note that the corrected time can fall 
+                                # into the past depending on the Cue
+                                # sound length
 
             # We store the upstate time stamp (non-corrected!)
             line = str(downstate_time) + ', Predicted upstate at ' + str(stim_at_stamp)
