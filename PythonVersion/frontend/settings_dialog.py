@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
                             QLabel, QLineEdit, QPushButton, QComboBox,
                             QRadioButton, QButtonGroup, QFileDialog,
-                            QDialogButtonBox, QGroupBox, QSpinBox)
+                            QDialogButtonBox, QGroupBox, QSpinBox, QCheckBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QFont
 import parameters as p
@@ -53,6 +53,15 @@ class SettingsDialog(QDialog):
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(title_label)
+
+        # Online vs offline session selection
+        offline_group = QGroupBox("Offline session simulation")
+        self.offline_checkbox = QCheckBox("Check if incoming stream is from offline file")
+        offline_layout = QHBoxLayout()
+        offline_layout.addWidget(self.offline_checkbox)
+        offline_layout.setContentsMargins(10, 10, 10, 10)  # Added internal margins
+        offline_group.setLayout(offline_layout)
+        main_layout.addWidget(offline_group)
         
         # Device Selection Group
         device_group = QGroupBox("Device Selection")
@@ -171,6 +180,9 @@ class SettingsDialog(QDialog):
     
     def load_current_settings(self):
         """Load current settings from parameters module."""
+        # Offline session
+        self.offline_checkbox.setChecked(p.IS_OFFLINE_SESSION)
+
         # Device
         if p.DEVICE.get("Muse", False):
             self.muse_radio.setChecked(True)
@@ -226,6 +238,9 @@ class SettingsDialog(QDialog):
     
     def apply_settings(self):
         """Apply the settings to the parameters module."""
+        # Update offline session
+        p.IS_OFFLINE_SESSION = self.offline_checkbox.isChecked()
+
         # Update device
         p.DEVICE["Muse"] = self.muse_radio.isChecked()
         p.DEVICE["OpenBCI"] = self.openbci_radio.isChecked()
@@ -320,6 +335,28 @@ class SettingsDialog(QDialog):
                 background-color: white;
                 border: 2px solid #cccccc;
                 border-radius: 7px;
+            }
+            
+            QCheckBox {
+                color: #333333;
+                spacing: 5px;
+            }
+            
+            QCheckBox::indicator {
+                width: 15px;
+                height: 15px;
+            }
+            
+            QCheckBox::indicator:checked {
+                background-color: #4CAF50;
+                border: 2px solid #4CAF50;
+                border-radius: 3px;
+            }
+            
+            QCheckBox::indicator:unchecked {
+                background-color: white;
+                border: 2px solid #cccccc;
+                border-radius: 3px;
             }
             
             QPushButton {

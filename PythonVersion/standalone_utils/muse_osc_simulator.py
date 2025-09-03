@@ -49,10 +49,6 @@ class StreamingThread(QThread):
                 # Get current sample
                 sample = self.simulator.data[self.simulator.current_index].copy()
                 
-                # Apply channel flipping if requested
-                if self.simulator.flip_signal:
-                    sample = sample * -1
-                
                 # Send EEG data
                 self.simulator.osc_client.send_message("/eeg", sample.tolist())
                 
@@ -183,7 +179,6 @@ class MuseOSCSimulator(QMainWindow):
         self.sleep_scores = None
         self.current_index = 0
         self.playback_speed = 1.0
-        self.flip_signal = False  # Default to flipped as per parameters
         
         self.streaming_thread = None
         
@@ -302,15 +297,6 @@ class MuseOSCSimulator(QMainWindow):
         
         speed_layout.addStretch()
         layout.addLayout(speed_layout)
-        
-        # Signal options
-        options_layout = QHBoxLayout()
-        self.flip_checkbox = QCheckBox("Flip Signal (*-1)")
-        self.flip_checkbox.setChecked(self.flip_signal)  # Default to flipped
-        self.flip_checkbox.stateChanged.connect(self.update_flip_signal)
-        options_layout.addWidget(self.flip_checkbox)
-        options_layout.addStretch()
-        layout.addLayout(options_layout)
         
         # Info section
         info_text = (
@@ -612,10 +598,6 @@ class MuseOSCSimulator(QMainWindow):
         """Update playback speed."""
         self.playback_speed = value / 100.0
         self.speed_label.setText(f"{self.playback_speed:.1f}x")
-    
-    def update_flip_signal(self, state):
-        """Update signal flipping setting."""
-        self.flip_signal = (state == Qt.Checked)
     
     def show_osc_settings(self):
         """Show OSC settings dialog."""

@@ -5,6 +5,8 @@ DEVICE          = {
     "Muse":     True,
 }
 
+IS_OFFLINE_SESSION = False # True if incoming signal stream is a simulated session
+
 # Recording session information (to be set for each participant)
 # -------------------------------------------------------------------------
 
