@@ -313,12 +313,12 @@ class Frontend(QMainWindow):
             deep_sleep_text = f"Deep Sleep: {is_sws}"
             self.stage_label.setText(f"{wake_text} | {deep_sleep_text}")
     
-    def update_plot(self, buffer_data):
+    def update_plot(self, buffer_data, buffer_data2=None):
         """Update the EEG plot with new buffer data"""
         if not self.window_closed and buffer_data is not None:
             try:
-                # Update plot data using native widget
-                self.plot_widget.update_data(buffer_data)
+                # Update plot data using native widget (with optional second line)
+                self.plot_widget.update_data(buffer_data, buffer_data2)
             except Exception as e:
                 print(f"Plot update error: {e}")
 
