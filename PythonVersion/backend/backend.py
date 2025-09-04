@@ -60,6 +60,11 @@ class Backend(Receiver):
         self.monitor_iterations = int(0)
         self.monitor_interval   = int(3) # seconds
         self.monitor_running    = True
+        
+        # Buffer copy for monitoring (updated periodically)
+        self.monitor_buffer = None
+        self.monitor_timestamps = None
+        
         self.monitor_thread     = Thread(
             target=self.runtime_monitor, daemon=True, name='runtime_monitor')
         self.monitor_thread.start()
@@ -85,6 +90,12 @@ class Backend(Receiver):
         # Extract signals (whole freq range, delta, slow delta)
         # -----------------------------------------------------------------
         v_wake, v_sleep, v_filtered_delta, v_delta, v_slowdelta = self.SgPrc.master_extract_signal(buffer)
+
+
+        # Update monitor buffer periodically (every ~100 samples to minimize overhead)
+        if self.monitor_iterations % 100 == 0:
+            self.monitor_buffer = v_sleep.copy()
+            self.monitor_timestamps = timestamps.copy()
 
 
         # Sleep and wake staging
@@ -175,6 +186,12 @@ class Backend(Receiver):
 
             # Update sleep states display
             self.gui.update_sleep_states(self.Stg.isawake, self.Stg.issws)
+
+            # Update plot if buffer is available
+            if self.monitor_buffer is not None:
+                # Safe to access monitor_buffer - it's a copy updated periodically
+                # Pass the current channel's data to GUI for plotting
+                self.gui.update_plot(self.monitor_buffer)
 
             dt = datetime.fromtimestamp(self.current_time/1000) # Needs to be seconds
             formatted_time = dt.strftime("%H:%M:%S")

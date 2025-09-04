@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QMenuBar, QMenu, QAction, QMessageBox)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
+from frontend.pyqt_native_plot_widget import NativePlotWidget
 import sys
 import parameters as p
 import os
@@ -40,7 +41,7 @@ class Frontend(QMainWindow):
 
         super().__init__()
         self.setWindowTitle("EazzZyLearn")
-        self.setGeometry(100, 100, 350, 225)
+        self.setGeometry(100, 100, 700, 500)  # Larger window for plot
         # self.setFixedSize(350, 200)  # Lock window size
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)  # Remove maximize button
 
@@ -101,6 +102,9 @@ class Frontend(QMainWindow):
             }
         """)
 
+        # Create native PyQt5 plot widget
+        self.plot_widget = NativePlotWidget(p.MAIN_BUFFER_LENGTH, p.SAMPLERATE)
+
         # Add widgets to layout
         layout.addWidget(channel_label)
         layout.addWidget(self.channel_combo)
@@ -111,6 +115,7 @@ class Frontend(QMainWindow):
         layout.addWidget(self.status_label)
         layout.addWidget(self.speed_label)
         layout.addWidget(self.stage_label)
+        layout.addWidget(self.plot_widget)
 
         # Connect button signals
         self.start_button.clicked.connect(self.start_stimulation)
@@ -307,6 +312,15 @@ class Frontend(QMainWindow):
             wake_text = f"Awake: {is_awake}"
             deep_sleep_text = f"Deep Sleep: {is_sws}"
             self.stage_label.setText(f"{wake_text} | {deep_sleep_text}")
+    
+    def update_plot(self, buffer_data):
+        """Update the EEG plot with new buffer data"""
+        if not self.window_closed and buffer_data is not None:
+            try:
+                # Update plot data using native widget
+                self.plot_widget.update_data(buffer_data)
+            except Exception as e:
+                print(f"Plot update error: {e}")
 
 def main():
     app = QApplication(sys.argv)
