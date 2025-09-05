@@ -374,7 +374,7 @@ class GenerateOutputs():
 
         v_baseline              = [-1, 2] # seconds
         v_window                = [-2, 3] # seconds
-        f_step                  = 0.1
+        f_step                  = 0.2
         freq_range              = (9, 26)
         channels                = ['RT'] # ['Fp1', 'Fp2'] 
         raw                     = self.get_raw_data()
@@ -382,6 +382,7 @@ class GenerateOutputs():
 
         # Filter data ---------------------------------------------------------
         raw_plot.notch_filter(50, picks='all', verbose='WARNING')
+        raw_plot.notch_filter(60, picks='all', verbose='WARNING')
         raw_plot.filter(l_freq=0.5, h_freq=2, picks='eeg', verbose='WARNING')
 
         # Extract events ------------------------------------------------------
@@ -462,16 +463,54 @@ class GenerateOutputs():
         ax.plot([0, 0], [f[0], f[-1]], 'k')
         plt.savefig(os.path.join(self.save_path, 'time_frequency.png'), bbox_inches='tight') # plt.show()
 
+
     def extract_tf_matrix(self, epochs, freqs, cycles):
+        print('Extracting stimulation time-frequency matrices ...')
+        # Memory optimization: Process in chunks if too many epochs
+        n_epochs = len(epochs)
+        max_epochs_per_chunk = 150  # Process max epochs at a time
+        print('   Converting epoched signals into float32')
+        epochs.data = epochs.get_data().astype(np.float32)
+        if n_epochs <= max_epochs_per_chunk:
+            chanTF_epochs = mne.time_frequency.tfr_morlet(epochs, freqs,
+                                                          n_cycles=cycles,
+                                                          picks='eeg', 
+                                                          average=False,
+                                                          return_itc=False,
+                                                          n_jobs=1)  # Reduce memory by using single job
+        else:
+            print(f'   Too many epochs to run at once (n = {n_epochs}). Splitting up into chunks of {max_epochs_per_chunk}')
+            # Process in chunks and combine
+            chunk_size = max_epochs_per_chunk
+            chunks = []
+            import gc
             
-        chanTF_epochs       = mne.time_frequency.tfr_morlet(epochs, freqs,
-                                                        n_cycles = cycles,
-                                                        picks='eeg', 
-                                                        average=False,
-                                                        return_itc=False)
+            for start_idx in range(0, n_epochs, chunk_size):
+                end_idx = min(start_idx + chunk_size, n_epochs)
+                epoch_chunk = epochs[start_idx:end_idx]
+                
+                chunk_tf = mne.time_frequency.tfr_morlet(
+                    epoch_chunk, freqs,
+                    n_cycles=cycles,
+                    picks='eeg',
+                    average=False,
+                    return_itc=False,
+                    n_jobs=1)
+                chunks.append(chunk_tf)
+                del chunk_tf
+                
+                # Force garbage collection after each chunk
+                gc.collect()
+
+            # Combine chunks
+            all_data = np.concatenate([chunk.data for chunk in chunks], axis=0)
+            chanTF_epochs = chunks[0]
+            chanTF_epochs.data = all_data
+        
         # chanTF_epochs is 4D matrix [trials x channels x freqs x times]
         # Important: Both from "epochs" as well as from "chanTF_epochs", the 
         # bad epochs marked by idx_bad are completely removed from the object
+        print ('   Done')
 
         return chanTF_epochs
 
