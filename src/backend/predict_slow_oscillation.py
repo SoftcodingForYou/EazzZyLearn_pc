@@ -27,6 +27,8 @@ class PredictSlowOscillation:
 
         self.disk_io                = DiskIO(
             p.MAX_BUFFERED_LINES, p.PREDICTION_FLUSH_INTERVAL, 'slow_osc_thread')
+        self.last_downstate_amplitudes = [p.DEFAULT_THRESHOLD] * 3
+        self.is_same_downstate = False
 
 
     def set_threshold(self, threshold_array):
@@ -38,6 +40,13 @@ class PredictSlowOscillation:
         adaptive_threshold          = - np.mean(v_envelope) - self.sd_multi * np.std(v_envelope) 
 
         return adaptive_threshold
+
+
+    def set_artifact_threshold(self, trough_amplitude):
+        self.last_downstate_amplitudes[:-1] = self.last_downstate_amplitudes[1:]
+        self.last_downstate_amplitudes[-1] = trough_amplitude
+        
+        return np.mean(self.last_downstate_amplitudes) * 2.5
 
 
     def extract_slow_oscillation_onset(self, delta_array, slow_delta_array):
@@ -59,13 +68,14 @@ class PredictSlowOscillation:
             # Last zero-crossing is separating our signal of interest (to 
             # the right) from the thresholding signal (to left)
 
-        # Verify that we are still in the downstate phase
+        # Verify that we are still in the negative halfwave
         idx_n2p_all             = np.where(diff_vector == 2)[0]
         if len(idx_n2p_all) != 0 and idx_n2p_all[-1] > idx_p2n:
+            self.is_same_downstate = False
             return None, None, None # We are already past the downphase and 
                                     # should ignore this slow oscillation
-
-        return delta_array[idx_p2n:], slow_delta_array[idx_p2n:], idx_p2n
+        else:
+            return delta_array[idx_p2n:], slow_delta_array[idx_p2n:], idx_p2n
 
 
     def downstate_validation(self, SO_onset_array, threshold):
@@ -80,6 +90,7 @@ class PredictSlowOscillation:
         # =================================================================
         idx_downstate           = np.argmin(SO_onset_array)
         post_down_signal        = SO_onset_array[idx_downstate:]
+
         if len(post_down_signal) < 2:
             # Here, we assure that we have indeed reached a downstate, 
             # whereafter the signal goes up again
@@ -88,6 +99,11 @@ class PredictSlowOscillation:
         elif (post_down_signal[0] < threshold and
             post_down_signal[0] < post_down_signal[1] and 
             post_down_signal[0] > self.artifact_threshold):
+            
+            if not self.is_same_downstate:
+                self.artifact_threshold = self.set_artifact_threshold(float(post_down_signal[0]))
+
+            self.is_same_downstate = True
             downstate_valid = True
         else:
             downstate_valid = False
@@ -121,8 +137,7 @@ class PredictSlowOscillation:
         # -----------------------------------------------------------------
         number_samples      = SO_onset.size - 1 # -1 because of Python indexing
         down_sample         = np.argmin(SO_onset)
-        time_shift          = round(
-            (number_samples - down_sample) * 1000 / sample_rate, 4)
+        time_shift          = (number_samples - down_sample) * 1000 / sample_rate
         downstate_timestamp = current_time - time_shift
         return downstate_timestamp
 

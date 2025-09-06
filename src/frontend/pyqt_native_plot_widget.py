@@ -25,9 +25,22 @@ class NativePlotWidget(QWidget):
         
     def update_data(self, new_data, new_data2=None):
         """Update the plot data and trigger repaint"""
+        # Validate input data
+        if new_data is None or len(new_data) == 0:
+            return
+            
+        # Check for NaN or Inf values and handle them
+        if not np.all(np.isfinite(new_data)):
+            print("Warning: NaN or Inf values detected in plot data, skipping update")
+            return
+            
         self.data = new_data
         if new_data2 is not None:
-            self.data2 = new_data2
+            if not np.all(np.isfinite(new_data2)):
+                print("Warning: NaN or Inf values in secondary plot data")
+                new_data2 = None  # Skip secondary data
+            else:
+                self.data2 = new_data2
         
         # Auto-scale Y axis with 0 always visible
         if len(new_data) > 0:
@@ -109,13 +122,15 @@ class NativePlotWidget(QWidget):
             y = int(height - self.margin_bottom - y_norm * plot_height)
             painter.drawText(QRectF(5, y - 10, self.margin_left - 15, 20),
                            Qt.AlignRight | Qt.AlignVCenter, f'{tick_val}')
+            
+        max_points = 500
         
         # Draw the second signal line (grey)
         if len(self.data2) > 1:
             painter.setPen(QPen(QColor('#808080'), 1.5))
             
-            # Downsample for performance (draw every 10th point)
-            step = max(1, len(self.data2) // 768)  # Max 768 points to draw
+            # Downsample for performance
+            step = max(1, len(self.data2) // max_points)  # Max points to draw
             
             # Create path
             prev_point = None
@@ -138,8 +153,8 @@ class NativePlotWidget(QWidget):
         painter.setPen(QPen(QColor('#4CAF50'), 1.5))
         
         if len(self.data) > 1:
-            # Downsample for performance (draw every 10th point)
-            step = max(1, len(self.data) // 768)  # Max 768 points to draw
+            # Downsample for performance
+            step = max(1, len(self.data) // max_points)
             
             # Create path
             prev_point = None
@@ -161,11 +176,6 @@ class NativePlotWidget(QWidget):
         # Draw legend in upper right corner
         legend_x = width - 120
         legend_y = 40
-        
-        # Draw legend background
-        painter.fillRect(QRectF(legend_x - 5, legend_y - 5, 110, 45), QColor(255, 255, 255, 200))
-        painter.setPen(QPen(QColor('#cccccc'), 1))
-        painter.drawRect(QRectF(legend_x - 5, legend_y - 5, 110, 45))
         
         # Draw legend items
         painter.setPen(QPen(QColor('#4CAF50'), 2))

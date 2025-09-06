@@ -250,11 +250,11 @@ class HandleData():
     def prep_cue_dir(self):
         """Dynamically determines the directory path for sound cue files.
 
-        This method constructs the absolute path to the 'Sounds' directory
+        This method constructs the absolute path to the 'sounds' directory
         based on the current file's location, ensuring compatibility across
         different platforms and avoiding hard-coded paths. It searches for
         the base project directory ('EazzZyLearn_pc') in the current file's
-        path and appends '/Sounds/' to it.
+        path and appends '/sounds/' to it.
 
         Returns:
             str: The absolute path to the sound cues directory.
@@ -264,7 +264,7 @@ class HandleData():
         str2find      = 'EazzZyLearn_pc'
         idx_base      = dirname.find(str2find)
         base_path     = dirname[0:idx_base+len(str2find)]
-        cue_directory = base_path + r'/Sounds/'
+        cue_directory = base_path + r'/sounds/'
 
         return cue_directory
 

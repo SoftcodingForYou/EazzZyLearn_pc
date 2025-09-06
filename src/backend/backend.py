@@ -58,7 +58,7 @@ class Backend(Receiver):
 
         self.current_time       = float(0.0)
         self.monitor_iterations = int(0)
-        self.monitor_interval   = int(1) # seconds
+        self.monitor_interval   = int(5) # seconds
         self.monitor_running    = True
         
         # Buffer copy for monitoring (updated periodically)

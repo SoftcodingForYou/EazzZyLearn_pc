@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QPushButton, QComboBox, QLabel, QCheckBox,
                             QMenuBar, QMenu, QAction, QMessageBox)
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QMetaObject, Q_ARG
 from frontend.pyqt_native_plot_widget import NativePlotWidget
 import sys
 import parameters as p
@@ -313,14 +313,33 @@ class Frontend(QMainWindow):
             deep_sleep_text = f"Deep Sleep: {is_sws}"
             self.stage_label.setText(f"{wake_text} | {deep_sleep_text}")
     
+    # Thread-safe signal for plot updates
+    plot_update_signal = pyqtSignal(object, object)
+    
     def update_plot(self, buffer_data, buffer_data2=None):
-        """Update the EEG plot with new buffer data"""
+        """Thread-safe update of the EEG plot with new buffer data"""
         if not self.window_closed and buffer_data is not None:
             try:
-                # Update plot data using native widget (with optional second line)
-                self.plot_widget.update_data(buffer_data, buffer_data2)
+                # Make copies to avoid threading issues
+                buffer_copy = buffer_data.copy() if buffer_data is not None else None
+                buffer2_copy = buffer_data2.copy() if buffer_data2 is not None else None
+                
+                # Use Qt's thread-safe method invocation
+                QMetaObject.invokeMethod(self, "_update_plot_gui",
+                                        Qt.QueuedConnection,
+                                        Q_ARG(object, buffer_copy),
+                                        Q_ARG(object, buffer2_copy))
             except Exception as e:
                 print(f"Plot update error: {e}")
+    
+    @pyqtSlot(object, object)
+    def _update_plot_gui(self, buffer_data, buffer_data2):
+        """GUI thread update of plot widget"""
+        if not self.window_closed:
+            try:
+                self.plot_widget.update_data(buffer_data, buffer_data2)
+            except Exception as e:
+                print(f"Plot widget update error: {e}")
 
 def main():
     app = QApplication(sys.argv)

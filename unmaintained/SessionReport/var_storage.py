@@ -7,12 +7,7 @@ class VariableOnDisk():
   '''
 
   def __init__(self, storage_path="./var_disk/"):
-    try:
-      os.mkdir(storage_path)
-    except:
-      print('Storage path already exist, here is available variables:', os.listdir(storage_path))
-
-    # We only need storage path
+    os.makedirs(storage_path, exist_ok=True)
     self.storage_path = storage_path
   
   def set(self, variable_name, value):
