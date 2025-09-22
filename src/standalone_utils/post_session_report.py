@@ -12,15 +12,19 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.signal_processing import SignalProcessing
 
-repeated_so_prediction_tolerance_window = 100 # ms
-ezl_eeg_path = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\EazzZyLearn_output\2025_09_04_1945\Offline_NON_Inverted\04-09-2025_19-45-57_Offline_NON_Inverted_eeg.txt'
-ezl_pred_path = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\EazzZyLearn_output\2025_09_04_1945\Offline_NON_Inverted\04-09-2025_19-45-57_Offline_NON_Inverted_pred.txt'
-ezl_stim_path = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\EazzZyLearn_output\2025_09_04_1945\Offline_NON_Inverted\04-09-2025_19-45-57_Offline_NON_Inverted_stim.txt'
+repeated_so_prediction_tolerance_window = 100   # ms --> EZL keeps predicting upstates as long as we 
+                                                # are in a slow wave's down phase. Therefore, we 
+                                                # have multiple writeouts with respect to the same 
+                                                # downstate. We remove those duplicates here.
+ezl_eeg_path = r'PATH/TO/_eeg.txt'
+ezl_pred_path = r'PATH/TO/_pred.txt'
+ezl_stim_path = r'PATH/TO/_stim.txt'
 
 plot_raw_signal             = False
 plot_delta_signal           = False
 plot_stimulation_timeseries = False
-plot_grand_average_so       = True
+plot_grand_average_so       = False
+plot_time_freq              = True
 
 
 # Optional parameters (leave empty or set None if not desired)
@@ -467,4 +471,115 @@ if raw_pred is not None and len(raw_pred) > 0 and plot_grand_average_so:
 else:
     print("No predictions available for grand average")
 
+
+def stim_time_freq(epochs_array, sample_rate=256):
+    """
+    Compute time-frequency representation using Morlet wavelets (similar to MNE's tfr_morlet).
+    
+    Args:
+        epochs_array: numpy array of shape (n_epochs, n_samples) containing epoched EEG data
+        pre_time: pre-stimulus time in seconds (will be made negative if positive)
+        post_time: post-stimulus time in seconds
+        sample_rate: sampling rate in Hz (default 256)
+    """
+    # Work directly with the numpy array of epochs
+    n_epochs = epochs_array.shape[0]
+    n_samples = epochs_array.shape[1] if epochs_array.ndim > 1 else len(epochs_array)
+    
+    print(f"Processing {n_epochs} epochs with {n_samples} samples each")
+    
+    # Simple spectrogram approach (no morlet2 needed)
+    from scipy import signal as sp
+    
+    # Initialize list to store normalized spectrograms
+    all_spectrograms_normalized = []
+    
+    # Process each epoch with spectrogram
+    for epoch_idx in range(n_epochs):
+        if epochs_array.ndim > 1:
+            epoch_data = epochs_array[epoch_idx, :]
+        else:
+            epoch_data = epochs_array if n_epochs == 1 else epochs_array[epoch_idx]
+        
+        # Compute spectrogram for this epoch
+        # Adjusted parameters for better resolution:
+        # - Smaller nperseg (64) = better time resolution (~0.25s windows)
+        # - Larger nfft (1024) = better frequency resolution
+        # - High overlap (56/64 = 87.5%) = smooth time transitions
+        f, t, Sxx = sp.spectrogram(
+            epoch_data,
+            fs=sample_rate,
+            window='hann',
+            nperseg=64,   # Smaller window = better time resolution (~0.25s at 256Hz)
+            noverlap=56,  # 87.5% overlap for smooth visualization
+            nfft=1024,    # Larger FFT = better frequency resolution
+            scaling='spectrum'
+        )
+        
+        # Z-score normalization for this epoch
+        # For each frequency, compute mean and std across all time points
+        freq_mean = np.mean(Sxx, axis=1, keepdims=True)  # Mean across time for each frequency
+        freq_std = np.std(Sxx, axis=1, keepdims=True)    # Std across time for each frequency
+        
+        # Apply z-score normalization to this epoch
+        Sxx_normalized = (Sxx - freq_mean) / (freq_std + 1e-10)
+        
+        all_spectrograms_normalized.append(Sxx_normalized)
+    
+    # Average across normalized epochs
+    avg_power = np.mean(all_spectrograms_normalized, axis=0)
+    
+    # Convert to dB for better visualization (optional)
+    avg_power = 10 * np.log10(avg_power + 1e-10)
+    
+    # Simple plotting
+    # -------------------------------------------------------------------------
+    # Focus on relevant frequency range
+    freq_mask = (f >= 0.5) & (f <= 20)
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot the time-frequency representation
+    im = ax.pcolormesh(
+        t,
+        f[freq_mask], 
+        avg_power[freq_mask, :],
+        cmap='jet',
+        shading='auto'
+    )
+    
+    ax.set_ylabel('Frequency (Hz)')
+    ax.set_xlabel('Time (s)')
+    ax.set_title(f'Time-Frequency Analysis (n={n_epochs} epochs)')
+    ax.axvline(0, color='white', linestyle='--', alpha=0.7, linewidth=2)
+    
+    fig.colorbar(im, ax=ax, label='Normalized Power (0-1)')
+    
+    # Save figure
+    save_path = os.path.dirname(ezl_pred_path) if 'ezl_pred_path' in globals() else '.'
+    output_file = os.path.join(save_path, 'time_frequency.png')
+    # plt.savefig(output_file, bbox_inches='tight', dpi=150)
+    plt.show()
+
+
+if plot_time_freq:
+    pre_time = 2.0  # seconds before downstate
+    post_time = 3.0  # seconds after downstate
+    
+    pre_samples = int(pre_time * sampling_rate)
+    post_samples = int(post_time * sampling_rate)
+    total_samples = pre_samples + post_samples + 1  # +1 for the center point
+    
+    # Initialize list to store all epochs
+    whole_range_epochs = []
+    
+    # Extract epochs around each downstate
+    for _, row in raw_pred.iterrows():
+        downstate_time = row['downstate_time']
+        downstate_idx = np.argmin(np.abs(timestamps_ezl - downstate_time))
+        if downstate_idx >= pre_samples and downstate_idx + post_samples < len(timestamps_ezl):
+            whole_range_epoch = v_sleep[downstate_idx - pre_samples:downstate_idx + post_samples + 1]
+            whole_range_epochs.append(whole_range_epoch)
+
+    stim_time_freq(np.array(whole_range_epochs))
 print('STAAAAPP')
