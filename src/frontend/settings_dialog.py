@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout,
                             QLabel, QLineEdit, QPushButton, QComboBox,
                             QRadioButton, QButtonGroup, QFileDialog,
-                            QDialogButtonBox, QGroupBox, QSpinBox, QCheckBox)
+                            QDialogButtonBox, QGroupBox, QSpinBox, QCheckBox,
+                            QScrollArea, QWidget)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QFont
 import parameters as p
@@ -24,7 +25,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("EazzZyLearn - Settings")
         self.setModal(True)
-        self.setFixedSize(550, 900)
+        self.setFixedSize(600, 700)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)  # Remove maximize button
         
         # Set window icon (same as main window)
@@ -41,27 +42,45 @@ class SettingsDialog(QDialog):
         
     def init_ui(self):
         """Initialize the user interface."""
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(15)  # Increased spacing between groups
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        
-        # Title label
+        # Main dialog layout
+        dialog_layout = QVBoxLayout()
+        dialog_layout.setContentsMargins(10, 10, 10, 10)
+
+        # Title label (outside scroll area)
         title_label = QLabel("Session Configuration")
         title_font = QFont()
         title_font.setPointSize(14)
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignCenter)
-        main_layout.addWidget(title_label)
+        dialog_layout.addWidget(title_label)
 
-        # Online vs offline session selection
-        offline_group = QGroupBox("Offline session simulation")
-        self.offline_checkbox = QCheckBox("Check if incoming stream is from offline file")
-        offline_layout = QHBoxLayout()
-        offline_layout.addWidget(self.offline_checkbox)
-        offline_layout.setContentsMargins(10, 10, 10, 10)  # Added internal margins
-        offline_group.setLayout(offline_layout)
-        main_layout.addWidget(offline_group)
+        # Create scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        # Create widget for scroll area content
+        scroll_widget = QWidget()
+        main_layout = QVBoxLayout(scroll_widget)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(15, 15, 25, 15)
+
+        # Debugging options
+        debug_group = QGroupBox("Debugging Options")
+        debug_layout = QVBoxLayout()
+        debug_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.offline_checkbox = QCheckBox("Offline mode (simulated EEG stream)")
+        self.plot_checkbox = QCheckBox("Enable real-time signal plotting")
+        self.sound_feedback_checkbox = QCheckBox("Sound-EEG feedback loop")
+
+        debug_layout.addWidget(self.offline_checkbox)
+        debug_layout.addWidget(self.plot_checkbox)
+        debug_layout.addWidget(self.sound_feedback_checkbox)
+        debug_group.setLayout(debug_layout)
+        main_layout.addWidget(debug_group)
         
         # Device Selection Group
         device_group = QGroupBox("Device Selection")
@@ -174,14 +193,24 @@ class SettingsDialog(QDialog):
         
         button_layout.addWidget(self.ok_button)
         button_layout.addWidget(self.cancel_button)
-        main_layout.addLayout(button_layout)
-        
-        self.setLayout(main_layout)
+
+        # Set scroll widget to scroll area
+        scroll_area.setWidget(scroll_widget)
+
+        # Add scroll area and buttons to dialog
+        dialog_layout.addWidget(scroll_area)
+        dialog_layout.addLayout(button_layout)
+
+        self.setLayout(dialog_layout)
     
     def load_current_settings(self):
         """Load current settings from parameters module."""
         # Offline session
         self.offline_checkbox.setChecked(p.IS_OFFLINE_SESSION)
+
+        # Debugging options
+        self.plot_checkbox.setChecked(p.ENABLE_SIGNAL_PLOT)
+        self.sound_feedback_checkbox.setChecked(p.SOUND_FEEDBACK_LOOP)
 
         # Device
         if p.DEVICE.get("Muse", False):
@@ -240,6 +269,10 @@ class SettingsDialog(QDialog):
         """Apply the settings to the parameters module."""
         # Update offline session
         p.IS_OFFLINE_SESSION = self.offline_checkbox.isChecked()
+
+        # Update debugging options
+        p.ENABLE_SIGNAL_PLOT = self.plot_checkbox.isChecked()
+        p.SOUND_FEEDBACK_LOOP = self.sound_feedback_checkbox.isChecked()
 
         # Update device
         p.DEVICE["Muse"] = self.muse_radio.isChecked()

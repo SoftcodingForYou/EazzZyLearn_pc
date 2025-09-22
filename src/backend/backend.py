@@ -70,6 +70,9 @@ class Backend(Receiver):
             target=self.runtime_monitor, daemon=True, name='runtime_monitor')
         self.monitor_thread.start()
 
+        # Sound feedback loop state
+        self.debugging_sound_loop_thread = None
+
 
     def real_time_algorithm(self, buffer, timestamps):
         # =================================================================
@@ -88,13 +91,27 @@ class Backend(Receiver):
         self.HndlDt.master_write_data(buffer, timestamps, self.HndlDt.eeg_path)
 
 
+        # Debugging option: Check for sound-EEG feedback loop mode
+        # -----------------------------------------------------------------
+        if self.gui.sound_feedback_enabled:
+            # Check if thread is None or not alive (finished playing)
+            if self.debugging_sound_loop_thread is None or not self.debugging_sound_loop_thread.is_alive():
+                self.debugging_sound_loop_thread = Thread(target=self.Cng.master_cue_stimulate,
+                    args=(self.HndlDt.chosen_cue, self.HndlDt.soundarray,
+                    self.HndlDt.soundsampling, self.HndlDt.cue_dir,
+                    self.HndlDt.stim_path, current_time))
+                self.debugging_sound_loop_thread.daemon = True
+                self.debugging_sound_loop_thread.start()
+            return  # Skip all other processing
+
+
         # Extract signals (whole freq range, delta, slow delta)
         # -----------------------------------------------------------------
         v_wake, v_sleep, v_filtered_delta, v_delta, v_slowdelta = self.SgPrc.master_extract_signal(buffer)
 
 
-        # Update monitor buffer periodically
-        if self.monitor_iterations == self.HndlDt.sample_rate * self.monitor_interval:
+        # Update monitor buffer periodically (only if plotting is enabled)
+        if self.gui.plot_enabled and self.monitor_iterations == self.HndlDt.sample_rate * self.monitor_interval:
             self.monitor_buffer = v_sleep.copy()
             self.monitor_buffer2 = v_filtered_delta.copy()
             self.monitor_timestamps = timestamps.copy()
@@ -189,8 +206,8 @@ class Backend(Receiver):
             # Update sleep states display
             self.gui.update_sleep_states(self.Stg.isawake, self.Stg.issws)
 
-            # Update plot if buffer is available
-            if self.monitor_buffer is not None:
+            # Update plot if buffer is available and plotting is enabled
+            if self.gui.plot_enabled and self.monitor_buffer is not None:
                 # Safe to access monitor_buffer - it's a copy updated periodically
                 # Pass both buffers to GUI for plotting
                 self.gui.update_plot(self.monitor_buffer, self.monitor_buffer2)

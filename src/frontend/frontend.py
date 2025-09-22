@@ -68,7 +68,11 @@ class Frontend(QMainWindow):
         # Create flip signal checkbox
         self.flip_signal = p.FLIP_SIGNAL
         self.flip_signal_checkbox = QCheckBox("Flip signal")
-        
+
+        # Initialize debugging settings from parameters
+        self.sound_feedback_enabled = p.SOUND_FEEDBACK_LOOP # Used in real_time_algorithm()
+        self.plot_enabled = p.ENABLE_SIGNAL_PLOT
+
         # Create buttons
         self.start_button = QPushButton("Enable")
         self.force_button = QPushButton("Force")
@@ -102,8 +106,11 @@ class Frontend(QMainWindow):
             }
         """)
 
-        # Create native PyQt5 plot widget
-        self.plot_widget = NativePlotWidget(p.MAIN_BUFFER_LENGTH, p.SAMPLERATE)
+        # Create native PyQt5 plot widget (only if enabled)
+        if self.plot_enabled:
+            self.plot_widget = NativePlotWidget(p.MAIN_BUFFER_LENGTH, p.SAMPLERATE)
+        else:
+            self.plot_widget = None
 
         # Add widgets to layout
         layout.addWidget(channel_label)
@@ -115,7 +122,8 @@ class Frontend(QMainWindow):
         layout.addWidget(self.status_label)
         layout.addWidget(self.speed_label)
         layout.addWidget(self.stage_label)
-        layout.addWidget(self.plot_widget)
+        if self.plot_widget:
+            layout.addWidget(self.plot_widget)
 
         # Connect button signals
         self.start_button.clicked.connect(self.start_stimulation)

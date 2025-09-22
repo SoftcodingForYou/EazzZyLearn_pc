@@ -1,11 +1,20 @@
 # Entrypoint device
 # -------------------------------------------------------------------------
+
 DEVICE          = {
     "OpenBCI":  False,
     "Muse":     True,
 }
 
 IS_OFFLINE_SESSION = False # True if incoming signal stream is a simulated session
+
+
+# Debugging options
+# -------------------------------------------------------------------------
+
+ENABLE_SIGNAL_PLOT = False # Enable/disable real-time signal plotting
+SOUND_FEEDBACK_LOOP = False # Enable/disable sound-EEG feedback loop for testing
+
 
 # Recording session information (to be set for each participant)
 # -------------------------------------------------------------------------
