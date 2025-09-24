@@ -101,16 +101,31 @@ class SettingsDialog(QDialog):
         
         # Output Directory Group
         output_group = QGroupBox("Output Directory")
-        output_layout = QHBoxLayout()
-        output_layout.setContentsMargins(10, 10, 10, 10)  # Added internal margins
-        
+        output_group_layout = QVBoxLayout()  # Main vertical layout for the group
+        output_group_layout.setContentsMargins(10, 10, 10, 10)  # Added internal margins
+
+        # Horizontal layout for text field and browse button
+        output_row_layout = QHBoxLayout()
         self.output_dir_edit = QLineEdit()
         self.browse_button = QPushButton("Browse...")
         self.browse_button.clicked.connect(self.browse_output_dir)
-        
-        output_layout.addWidget(self.output_dir_edit)
-        output_layout.addWidget(self.browse_button)
-        output_group.setLayout(output_layout)
+
+        output_row_layout.addWidget(self.output_dir_edit)
+        output_row_layout.addWidget(self.browse_button)
+
+        # Add horizontal layout to vertical layout
+        output_group_layout.addLayout(output_row_layout)
+
+        # Add spacing between rows
+        output_group_layout.addSpacing(5)
+
+        # Use Current Date/Time button (now inside the group)
+        self.use_datetime_button = QPushButton("Use Current Date/Time for Output Directory")
+        self.use_datetime_button.clicked.connect(self.use_current_datetime)
+        self.use_datetime_button.setObjectName("dateTimeButton")
+        output_group_layout.addWidget(self.use_datetime_button)
+
+        output_group.setLayout(output_group_layout)
         main_layout.addWidget(output_group)
         
         # Subject Information Group
@@ -148,31 +163,22 @@ class SettingsDialog(QDialog):
         # Chosen cue
         audio_layout.addWidget(QLabel("Cue Sound:"), 0, 0)
         self.cue_combo = QComboBox()
-        self.cue_combo.addItems(["gong", "heart"])
+        self.cue_combo.addItems(["gong", "heart", "Beats_1Hz_1min"])
         self.cue_combo.setEditable(True)
         audio_layout.addWidget(self.cue_combo, 0, 1)
         
         # Background sound
-        audio_layout.addWidget(QLabel("Background:"), 1, 0)
+        # audio_layout.addWidget(QLabel("Background:"), 1, 0)
         self.background_edit = QLineEdit()
-        audio_layout.addWidget(self.background_edit, 1, 1)
+        # audio_layout.addWidget(self.background_edit, 1, 1)
         
         # Cue interval
-        audio_layout.addWidget(QLabel("Cue Interval (min):"), 2, 0)
+        # audio_layout.addWidget(QLabel("Cue Interval (min):"), 2, 0)
         self.interval_edit = QLineEdit()
-        audio_layout.addWidget(self.interval_edit, 2, 1)
+        # audio_layout.addWidget(self.interval_edit, 2, 1)
         
         audio_group.setLayout(audio_layout)
         main_layout.addWidget(audio_group)
-        
-        # Use Current Date/Time button
-        date_layout = QHBoxLayout()
-        self.use_datetime_button = QPushButton("Use Current Date/Time for Output Directory")
-        self.use_datetime_button.clicked.connect(self.use_current_datetime)
-        self.use_datetime_button.setObjectName("dateTimeButton")
-        date_layout.addWidget(self.use_datetime_button)
-        date_layout.addStretch()
-        main_layout.addLayout(date_layout)
         
         # Add some spacing before buttons
         main_layout.addSpacing(10)
@@ -435,12 +441,16 @@ class SettingsDialog(QDialog):
             }
             
             QPushButton#dateTimeButton {
-                background-color: #2196F3;
+                background-color: #4CAF50;
                 color: white;
                 border: none;
             }
-            
+
             QPushButton#dateTimeButton:hover {
-                background-color: #1976D2;
+                background-color: #45a049;
+            }
+
+            QPushButton#dateTimeButton:pressed {
+                background-color: #3d8b40;
             }
         """)
