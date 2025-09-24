@@ -23,8 +23,10 @@ ezl_stim_path = r'PATH/TO/_stim.txt'
 plot_raw_signal             = False
 plot_delta_signal           = False
 plot_stimulation_timeseries = False
+plot_detection_accuracy     = False
+plot_prediction_accuracy    = False
 plot_grand_average_so       = False
-plot_time_freq              = True
+plot_time_freq              = False
 
 
 # Optional parameters (leave empty or set None if not desired)
@@ -380,6 +382,197 @@ if plot_stimulation_timeseries:
     plt.show()
 
 
+# Extract accuracy metrics for detection and prediction of down- and upstates
+# --------------------------------------------------------------------------------------------------
+window_look_for_downstate = 200 # ms
+downstate_window_length = window_look_for_downstate / 1000 * sampling_rate
+down_differences = []
+if plot_detection_accuracy:
+    # For each detected downstate, take the time delay between the real-time detection and the 
+    # offline minimum
+    if raw_pred is not None and len(raw_pred) > 0:
+        # Convert timestamps to indices to get delta values at those times
+        # Find closest indices in timestamps_ezl for each prediction time
+        for _, row in raw_pred.iterrows():
+            # Find index for downstate
+            real_time_downstate_idx = np.argmin(np.abs(timestamps_ezl - row['downstate_time']))
+            start_idx = round(real_time_downstate_idx - downstate_window_length/2)
+            stop_idx = round(real_time_downstate_idx + downstate_window_length/2)
+            if stop_idx < len(v_delta) and start_idx >= 0:
+                delta_down = v_delta[start_idx:stop_idx]
+                times_down = timestamps_ezl[start_idx:stop_idx]
+                offline_time_downstate_idx = np.argmin(delta_down)
+                if offline_time_downstate_idx > 0 and offline_time_downstate_idx < delta_down.size - 1: # Otherwise, likely an artifact
+                    down_diff = timestamps_ezl[real_time_downstate_idx] - times_down[offline_time_downstate_idx]
+                    down_differences.append(down_diff) # in ms
+                
+    # Positive values mean that real-time implementation is detecting downstates later than actual
+    # ones. Expected since we mark them at first sample going back up (one sample later than actual)
+
+    # Plot histogram of detection accuracy
+    if len(down_differences) > 0:
+        down_differences_ms = np.array(down_differences)
+
+        # Create histogram figure
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Plot histogram
+        n_bins = min(30, max(10, len(down_differences_ms) // 5))  # Adaptive bin number
+        counts, bins, patches = ax.hist(down_differences_ms, bins=n_bins,
+                                       edgecolor='black', alpha=0.7, color='steelblue')
+
+        # Add vertical line at zero (perfect detection)
+        ax.axvline(x=0, color='red', linestyle='--', linewidth=2,
+                  label='Perfect detection (0 ms)')
+
+        # Calculate and display statistics
+        mean_diff = np.mean(down_differences_ms)
+        median_diff = np.median(down_differences_ms)
+        std_diff = np.std(down_differences_ms)
+
+        # Add vertical lines for mean and median
+        ax.axvline(x=mean_diff, color='green', linestyle='-', linewidth=2,
+                  label=f'Mean: {mean_diff:.1f} ms')
+        ax.axvline(x=median_diff, color='orange', linestyle='-', linewidth=2,
+                  label=f'Median: {median_diff:.1f} ms')
+
+        # Labels and title
+        ax.set_xlabel('Detection Delay (ms)', fontsize=12)
+        ax.set_ylabel('Count', fontsize=12)
+        ax.set_title(f'Downstate Detection Accuracy (n={len(down_differences)} detections)\n' +
+                    f'Mean: {mean_diff:.1f}±{std_diff:.1f} ms, Median: {median_diff:.1f} ms',
+                    fontsize=14)
+
+        # Add legend
+        ax.legend(loc='upper right')
+
+        # Add grid for better readability
+        ax.grid(True, alpha=0.3)
+
+        # Add text box with additional statistics
+        textstr = f'Total detections: {len(down_differences)}\n'
+        textstr += f'Within ±10ms: {np.sum(np.abs(down_differences_ms) <= 10):.0f} ({100*np.sum(np.abs(down_differences_ms) <= 10)/len(down_differences_ms):.1f}%)\n'
+        textstr += f'Within ±20ms: {np.sum(np.abs(down_differences_ms) <= 20):.0f} ({100*np.sum(np.abs(down_differences_ms) <= 20)/len(down_differences_ms):.1f}%)\n'
+        textstr += f'Within ±50ms: {np.sum(np.abs(down_differences_ms) <= 50):.0f} ({100*np.sum(np.abs(down_differences_ms) <= 50)/len(down_differences_ms):.1f}%)'
+
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=props)
+
+        # Save figure
+        save_path = os.path.dirname(ezl_pred_path) if ezl_pred_path else '.'
+        output_file = os.path.join(save_path, 'downstate_detection_accuracy.png')
+        plt.savefig(output_file, bbox_inches='tight', dpi=150)
+        print(f"Detection accuracy histogram saved to: {output_file}")
+
+        # plt.show()
+    else:
+        print("No valid downstate detections found for accuracy analysis")
+
+
+if plot_prediction_accuracy:
+    # Extract accuracy metrics for upstate predictions
+    window_look_for_upstate = 800  # ms to look for actual upstate after downstate
+    upstate_window_length = window_look_for_upstate / 1000 * sampling_rate
+    up_differences = []
+
+    if raw_pred is not None and len(raw_pred) > 0:
+        # For each predicted upstate, find the time delay between prediction and actual peak
+        for _, row in raw_pred.iterrows():
+            # Get predicted upstate time
+            predicted_upstate_time = row['predicted_upstate_time']
+            detected_downstate_time = row['downstate_time']
+
+            # Find indices
+            predicted_upstate_idx = np.argmin(np.abs(timestamps_ezl - predicted_upstate_time))
+            detected_downstate_idx = np.argmin(np.abs(timestamps_ezl - detected_downstate_time))
+
+            # Look for actual upstate peak in a window around the predicted upstate
+            # Center the search window on the predicted upstate time
+            search_start_idx = detected_downstate_idx
+            search_end_idx = min(predicted_upstate_idx + int(upstate_window_length/1.5), len(v_slowdelta) - 1)
+
+            if search_end_idx > search_start_idx:
+                # Find the maximum (upstate peak) in the slow delta signal around predicted time
+                delta_search_window = v_slowdelta[search_start_idx:search_end_idx]
+                times_search_window = timestamps_ezl[search_start_idx:search_end_idx]
+
+                # Find the actual upstate (maximum) in the window
+                actual_upstate_idx = np.argmax(delta_search_window)
+
+                # Only consider valid upstates (not at edges which might be artifacts)
+                if actual_upstate_idx > 0 and actual_upstate_idx < len(delta_search_window) - 1:
+                    actual_upstate_time = times_search_window[actual_upstate_idx]
+                    up_diff = predicted_upstate_time - actual_upstate_time
+                    up_differences.append(up_diff)
+
+    # Plot histogram of upstate prediction accuracy
+    if len(up_differences) > 0:
+        up_differences_ms = np.array(up_differences)  # Already in ms
+
+        # Create histogram figure
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Plot histogram
+        n_bins = min(30, max(10, len(up_differences_ms) // 5))  # Adaptive bin number
+        counts, bins, patches = ax.hist(up_differences_ms, bins=n_bins,
+                                       edgecolor='black', alpha=0.7, color='coral')
+
+        # Add vertical line at zero (perfect prediction)
+        ax.axvline(x=0, color='red', linestyle='--', linewidth=2,
+                  label='Perfect prediction (0 ms)')
+
+        # Calculate and display statistics
+        mean_diff = np.mean(up_differences_ms)
+        median_diff = np.median(up_differences_ms)
+        std_diff = np.std(up_differences_ms)
+
+        # Add vertical lines for mean and median
+        ax.axvline(x=mean_diff, color='green', linestyle='-', linewidth=2,
+                  label=f'Mean: {mean_diff:.1f} ms')
+        ax.axvline(x=median_diff, color='orange', linestyle='-', linewidth=2,
+                  label=f'Median: {median_diff:.1f} ms')
+
+        # Labels and title
+        ax.set_xlabel('Prediction Error (ms)\n(Positive = predicted after actual)', fontsize=12)
+        ax.set_ylabel('Count', fontsize=12)
+        ax.set_title(f'Upstate Prediction Accuracy (n={len(up_differences)} predictions)\n' +
+                    f'Mean: {mean_diff:.1f}±{std_diff:.1f} ms, Median: {median_diff:.1f} ms',
+                    fontsize=14)
+
+        # Add legend
+        ax.legend(loc='upper right')
+
+        # Add grid for better readability
+        ax.grid(True, alpha=0.3)
+
+        # Add text box with additional statistics
+        textstr = f'Total predictions: {len(up_differences)}\n'
+        textstr += f'Within ±25ms: {np.sum(np.abs(up_differences_ms) <= 25):.0f} ({100*np.sum(np.abs(up_differences_ms) <= 25)/len(up_differences_ms):.1f}%)\n'
+        textstr += f'Within ±50ms: {np.sum(np.abs(up_differences_ms) <= 50):.0f} ({100*np.sum(np.abs(up_differences_ms) <= 50)/len(up_differences_ms):.1f}%)\n'
+        textstr += f'Within ±100ms: {np.sum(np.abs(up_differences_ms) <= 100):.0f} ({100*np.sum(np.abs(up_differences_ms) <= 100)/len(up_differences_ms):.1f}%)'
+
+        # Add info about early vs late predictions
+        early_preds = np.sum(up_differences_ms < 0)
+        late_preds = np.sum(up_differences_ms > 0)
+        textstr += f'\nEarly predictions: {early_preds} ({100*early_preds/len(up_differences_ms):.1f}%)'
+        textstr += f'\nLate predictions: {late_preds} ({100*late_preds/len(up_differences_ms):.1f}%)'
+
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        ax.text(0.02, 0.98, textstr, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=props)
+
+        # Save figure
+        save_path = os.path.dirname(ezl_pred_path) if ezl_pred_path else '.'
+        output_file = os.path.join(save_path, 'upstate_prediction_accuracy.png')
+        plt.savefig(output_file, bbox_inches='tight', dpi=150)
+        print(f"Upstate prediction accuracy histogram saved to: {output_file}")
+
+        # plt.show()
+    else:
+        print("No valid upstate predictions found for accuracy analysis")
+
+
 # Create grand average of EEG signal centered on downstates
 # --------------------------------------------------------------------------------------------------
 if raw_pred is not None and len(raw_pred) > 0 and plot_grand_average_so:
@@ -393,22 +586,20 @@ if raw_pred is not None and len(raw_pred) > 0 and plot_grand_average_so:
     
     # Initialize list to store all epochs
     epochs = []
-    valid_downstates = 0
     
     # Extract epochs around each downstate
-    for _, row in raw_pred.iterrows():
+
+    for idx, (_, row) in enumerate(raw_pred.iterrows()):
         downstate_time = row['downstate_time']
-        
+
         # Find the closest index in the timestamps
         downstate_idx = np.argmin(np.abs(timestamps_ezl - downstate_time))
-        
         # Check if we have enough data before and after
-        if downstate_idx >= pre_samples and downstate_idx + post_samples < len(timestamps_ezl):
+        if downstate_idx - pre_samples >= 0 and downstate_idx + post_samples < len(timestamps_ezl):
             # Extract epoch from reconstructed channel (index 4)
             # epoch = eeg_raw_ezl[4, downstate_idx - pre_samples:downstate_idx + post_samples + 1]
             epoch = v_delta[downstate_idx - pre_samples:downstate_idx + post_samples + 1]
             epochs.append(epoch)
-            valid_downstates += 1
     
     if len(epochs) > 0:
         # Convert to numpy array and compute grand average
@@ -424,36 +615,48 @@ if raw_pred is not None and len(raw_pred) > 0 and plot_grand_average_so:
         
         # Plot 1: Grand average with confidence interval
         ax1.plot(time_axis, grand_average, 'b-', linewidth=2, label='Grand Average')
-        ax1.fill_between(time_axis, 
-                         grand_average - std_error, 
-                         grand_average + std_error, 
+        ax1.fill_between(time_axis,
+                         grand_average - std_error,
+                         grand_average + std_error,
                          alpha=0.3, color='blue', label='±SEM')
-        ax1.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='Downstate')
+        ax1.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='Real-time downstate')
         ax1.axhline(y=0, color='gray', linestyle='-', alpha=0.3)
         ax1.set_ylabel('Amplitude (µV)')
-        ax1.set_title(f'Grand Average of EEG around Slow Oscillation Downstates (n={valid_downstates})')
+        ax1.set_title(f'Grand Average of EEG around Slow Oscillation Downstates (n={len(epochs)})')
         ax1.legend(loc='upper right')
         ax1.grid(True, alpha=0.3)
-        
+
+        # Calculate y-limits based on confidence interval with some padding
+        y_min = np.min(grand_average - std_error)
+        y_max = np.max(grand_average + std_error)
+        y_range = y_max - y_min
+        y_padding = y_range * 3
+        ylim = (y_min - y_padding, y_max + y_padding)
+
         # Plot 2: All individual epochs overlaid
         ax2.plot(time_axis, epochs_array.T, alpha=0.1, color='gray', linewidth=0.5)
         ax2.plot(time_axis, grand_average, 'b-', linewidth=2, label='Grand Average')
-        ax2.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='Downstate')
+        ax2.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='Real-time downstate')
         ax2.axhline(y=0, color='gray', linestyle='-', alpha=0.3)
         ax2.set_xlabel('Time relative to downstate (ms)')
         ax2.set_ylabel('Amplitude (µV)')
         ax2.set_title('Individual Epochs')
         ax2.legend(loc='upper right')
         ax2.grid(True, alpha=0.3)
+        ax2.set_ylim(ylim)
         
         plt.tight_layout()
-        plt.show()
+
+        output_file = os.path.join(save_path, 'grand_average.png')
+        plt.savefig(output_file, bbox_inches='tight', dpi=150)
+
+        # plt.show()
         
         # Print statistics
         print(f"\nGrand Average Statistics:")
         print(f"  Total downstates detected: {len(raw_pred)}")
-        print(f"  Valid epochs extracted: {valid_downstates}")
-        print(f"  Epochs excluded (edge effects): {len(raw_pred) - valid_downstates}")
+        print(f"  Valid epochs extracted: {len(epochs)}")
+        print(f"  Epochs excluded (edge effects): {len(raw_pred) - len(epochs)}")
         print(f"  Mean amplitude at downstate (t=0): {grand_average[pre_samples]:.2f} µV")
         
         # Find and report the minimum (trough) around the downstate
@@ -582,4 +785,4 @@ if plot_time_freq:
             whole_range_epochs.append(whole_range_epoch)
 
     stim_time_freq(np.array(whole_range_epochs))
-print('STAAAAPP')
+print('Your last chance to set a breakpoint')
