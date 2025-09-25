@@ -30,9 +30,11 @@ plot_time_freq              = False
 
 
 # Optional parameters (leave empty or set None if not desired)
-muse_eeg_path = r'D:\NextcloudInteraxon\Research\DeepSleepStimulation\recordings_csv\2023-03-24T00-31-56+01-00_6008-9Y7T-6FB0_eeg.csv'
+muse_eeg_path = r'PATH/TO/RAW/EEG.csv'
 
 # ==================================================================================================
+
+SAVE_PATH = os.path.dirname(ezl_pred_path) if ezl_pred_path else '.'
 
 def load_eeg_data(file_path, is_muse_native):
     """Load EEG data from text file using pandas."""
@@ -293,7 +295,10 @@ if plot_raw_signal: # Whole range signal
     ax.set_title('Whole range signal: 0.1 - 45 Hz; Notch filter: 49 - 61 Hz)')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    plt.show()
+    output_file = os.path.join(SAVE_PATH, 'whole_range_signal.png')
+    plt.savefig(output_file, bbox_inches='tight', dpi=150)
+    print(f"Whole range signal plot saved to: {output_file}")
+    # plt.show()
 
 if plot_delta_signal:
     # Do the same for delta signal
@@ -308,7 +313,10 @@ if plot_delta_signal:
     ax.set_title('Delta signal: 0.5 - 4 Hz)')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    plt.show()
+    output_file = os.path.join(SAVE_PATH, 'delta_signal.png')
+    plt.savefig(output_file, bbox_inches='tight', dpi=150)
+    print(f"Delta signal plot saved to: {output_file}")
+    # plt.show()
 
 
 # Remove downstates that are within 100ms of each other
@@ -379,6 +387,9 @@ if plot_stimulation_timeseries:
     ax.set_title('Delta signal (0.5 - 4 Hz) with Slow Oscillation Detection')
     ax.legend()
     ax.grid(True, alpha=0.3)
+    output_file = os.path.join(SAVE_PATH, 'slow_wave_and_stimulations.png')
+    plt.savefig(output_file, bbox_inches='tight', dpi=150)
+    print(f"Plot showing timestamps of slow wave features and stimulations saved to: {output_file}")
     plt.show()
 
 
@@ -460,8 +471,7 @@ if plot_detection_accuracy:
                 verticalalignment='top', bbox=props)
 
         # Save figure
-        save_path = os.path.dirname(ezl_pred_path) if ezl_pred_path else '.'
-        output_file = os.path.join(save_path, 'downstate_detection_accuracy.png')
+        output_file = os.path.join(SAVE_PATH, 'downstate_detection_accuracy.png')
         plt.savefig(output_file, bbox_inches='tight', dpi=150)
         print(f"Detection accuracy histogram saved to: {output_file}")
 
@@ -563,8 +573,7 @@ if plot_prediction_accuracy:
                 verticalalignment='top', bbox=props)
 
         # Save figure
-        save_path = os.path.dirname(ezl_pred_path) if ezl_pred_path else '.'
-        output_file = os.path.join(save_path, 'upstate_prediction_accuracy.png')
+        output_file = os.path.join(SAVE_PATH, 'upstate_prediction_accuracy.png')
         plt.savefig(output_file, bbox_inches='tight', dpi=150)
         print(f"Upstate prediction accuracy histogram saved to: {output_file}")
 
@@ -647,7 +656,7 @@ if raw_pred is not None and len(raw_pred) > 0 and plot_grand_average_so:
         
         plt.tight_layout()
 
-        output_file = os.path.join(save_path, 'grand_average.png')
+        output_file = os.path.join(SAVE_PATH, 'grand_average.png')
         plt.savefig(output_file, bbox_inches='tight', dpi=150)
 
         # plt.show()
@@ -759,10 +768,9 @@ def stim_time_freq(epochs_array, sample_rate=256):
     fig.colorbar(im, ax=ax, label='Normalized Power (0-1)')
     
     # Save figure
-    save_path = os.path.dirname(ezl_pred_path) if 'ezl_pred_path' in globals() else '.'
-    output_file = os.path.join(save_path, 'time_frequency.png')
+    output_file = os.path.join(SAVE_PATH, 'time_frequency.png')
     # plt.savefig(output_file, bbox_inches='tight', dpi=150)
-    plt.show()
+    # plt.show()
 
 
 if plot_time_freq:
