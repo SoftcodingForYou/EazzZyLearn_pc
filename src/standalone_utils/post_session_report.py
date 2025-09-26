@@ -7,6 +7,7 @@ import os
 import sys
 import json
 from datetime import datetime
+from scipy.signal import hilbert
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,21 +17,22 @@ repeated_so_prediction_tolerance_window = 100   # ms --> EZL keeps predicting up
                                                 # are in a slow wave's down phase. Therefore, we 
                                                 # have multiple writeouts with respect to the same 
                                                 # downstate. We remove those duplicates here.
-ezl_eeg_path = r'PATH/TO/_eeg.txt'
-ezl_pred_path = r'PATH/TO/_pred.txt'
-ezl_stim_path = r'PATH/TO/_stim.txt'
+ezl_eeg_path = r'path/to/[...]eeg.txt'
+ezl_pred_path = r'path/to/[...]pred.txt'
+ezl_stim_path = r'path/to/[...]stim.txt'
 
 plot_raw_signal             = False
 plot_delta_signal           = False
 plot_stimulation_timeseries = False
 plot_detection_accuracy     = False
 plot_prediction_accuracy    = False
+plot_phase_polar            = False
 plot_grand_average_so       = False
 plot_time_freq              = False
 
 
 # Optional parameters (leave empty or set None if not desired)
-muse_eeg_path = r'PATH/TO/RAW/EEG.csv'
+muse_eeg_path = None # r'PATH/TO/RAW/EEG.csv'
 
 # ==================================================================================================
 
@@ -480,11 +482,15 @@ if plot_detection_accuracy:
         print("No valid downstate detections found for accuracy analysis")
 
 
-if plot_prediction_accuracy:
+if plot_prediction_accuracy or plot_phase_polar:
     # Extract accuracy metrics for upstate predictions
     window_look_for_upstate = 800  # ms to look for actual upstate after downstate
     upstate_window_length = window_look_for_upstate / 1000 * sampling_rate
     up_differences = []
+    predicted_phases = []  # Store phase at predicted upstate time
+
+    # Compute analytic signal (Hilbert transform) for phase extraction
+    instantaneous_phase = np.angle(hilbert(v_slowdelta))  # Phase in radians [-pi, pi]
 
     if raw_pred is not None and len(raw_pred) > 0:
         # For each predicted upstate, find the time delay between prediction and actual peak
@@ -496,6 +502,11 @@ if plot_prediction_accuracy:
             # Find indices
             predicted_upstate_idx = np.argmin(np.abs(timestamps_ezl - predicted_upstate_time))
             detected_downstate_idx = np.argmin(np.abs(timestamps_ezl - detected_downstate_time))
+
+            # Extract phase at predicted upstate time
+            if predicted_upstate_idx < len(instantaneous_phase):
+                phase_at_prediction = instantaneous_phase[predicted_upstate_idx]
+                predicted_phases.append(phase_at_prediction)
 
             # Look for actual upstate peak in a window around the predicted upstate
             # Center the search window on the predicted upstate time
@@ -580,6 +591,121 @@ if plot_prediction_accuracy:
         # plt.show()
     else:
         print("No valid upstate predictions found for accuracy analysis")
+
+
+# Create polar plot of signal phase at predicted upstate times
+# --------------------------------------------------------------------------------------------------
+if plot_phase_polar and len(predicted_phases) > 0:
+    print(f"\nCreating polar plot of signal phases at predicted upstates (n={len(predicted_phases)})...")
+
+    # Convert phases to numpy array
+    phases_array = np.array(predicted_phases)
+
+    # Create polar plot
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='polar')
+
+    # Plot individual phase points
+    ax.scatter(phases_array, np.ones_like(phases_array),
+               c='steelblue', s=50, alpha=0.6, edgecolors='black', linewidth=0.5)
+
+    # Compute and plot mean resultant vector (circular mean)
+    # Mean direction: angle of the sum of unit vectors
+    mean_cos = np.mean(np.cos(phases_array))
+    mean_sin = np.mean(np.sin(phases_array))
+    mean_angle = np.arctan2(mean_sin, mean_cos)
+
+    # Mean resultant length (concentration measure, 0=uniform, 1=all same phase)
+    mean_length = np.sqrt(mean_cos**2 + mean_sin**2)
+
+    # Plot mean vector
+    ax.plot([mean_angle, mean_angle], [0, mean_length],
+            'r-', linewidth=3, label=f'Mean vector (r={mean_length:.3f})')
+    ax.scatter([mean_angle], [mean_length], c='red', s=200, zorder=5,
+               marker='o', edgecolors='darkred', linewidth=2)
+
+    # Configure polar plot appearance
+    ax.set_theta_zero_location('N')  # 0 degrees at top
+    ax.set_theta_direction(-1)  # Clockwise
+    ax.set_ylim(0, 1.2)
+    ax.set_yticks([0.25, 0.5, 0.75, 1.0])
+    ax.set_yticklabels(['', '', '', ''])
+
+    # Add phase labels
+    ax.set_xticks(np.linspace(0, 2*np.pi, 8, endpoint=False))
+    ax.set_xticklabels(['0°\n(Peak)', '45°', '90°\n(Descending)', '135°',
+                        '180°\n(Trough)', '225°', '270°\n(Ascending)', '315°'])
+
+    # Add title with statistics
+    plt.title(f'Signal Phase at Predicted Upstate Times\n'
+              f'n={len(predicted_phases)} predictions | '
+              f'Mean vector length r={mean_length:.3f} | '
+              f'Mean angle={np.degrees(mean_angle):.1f}°',
+              fontsize=14, pad=20)
+
+    # Add legend
+    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+
+    # Add circular histogram in background
+    n_bins = 16
+    hist, bin_edges = np.histogram(phases_array, bins=n_bins, range=(-np.pi, np.pi))
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    bin_width = bin_edges[1] - bin_edges[0]
+
+    # Normalize histogram to 0-0.8 range for background
+    hist_norm = hist / hist.max() * 0.8 if hist.max() > 0 else hist
+
+    # Plot histogram bars
+    bars = ax.bar(bin_centers, hist_norm, width=bin_width,
+                  bottom=0.0, alpha=0.3, color='gray', edgecolor='none')
+
+    # Add text box with Rayleigh test for uniformity
+    from scipy import stats as scipy_stats
+    # Rayleigh test: tests if distribution is uniform (small p-value = non-uniform)
+    # Compute Rayleigh Z statistic
+    n = len(phases_array)
+    R = n * mean_length  # Resultant vector length
+    Z = R**2 / n  # Rayleigh Z statistic
+    p_value = np.exp(-Z) * (1 + (2*Z - Z**2)/(4*n) - (24*Z - 132*Z**2 + 76*Z**3 - 9*Z**4)/(288*n**2))
+
+    textstr = f'Rayleigh test for non-uniformity:\n'
+    textstr += f'Z = {Z:.3f}\n'
+    textstr += f'p-value = {p_value:.4f}\n'
+    if p_value < 0.001:
+        textstr += f'Result: Highly non-uniform***'
+    elif p_value < 0.01:
+        textstr += f'Result: Non-uniform**'
+    elif p_value < 0.05:
+        textstr += f'Result: Non-uniform*'
+    else:
+        textstr += f'Result: Uniform distribution'
+
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+    ax.text(0.02, 0.98, textstr, transform=fig.transFigure, fontsize=10,
+            verticalalignment='top', bbox=props)
+
+    # Save figure
+    output_file = os.path.join(SAVE_PATH, 'phase_polar_plot.png')
+    plt.savefig(output_file, bbox_inches='tight', dpi=150)
+    print(f"Phase polar plot saved to: {output_file}")
+
+    # Print phase statistics
+    print(f"\nPhase Statistics:")
+    print(f"  Total predictions with phase data: {len(predicted_phases)}")
+    print(f"  Mean resultant vector length (r): {mean_length:.3f}")
+    print(f"  Mean phase angle: {np.degrees(mean_angle):.1f}° ({mean_angle:.3f} rad)")
+    print(f"  Circular variance: {1 - mean_length:.3f}")
+    print(f"  Rayleigh Z statistic: {Z:.3f}")
+    print(f"  Rayleigh p-value: {p_value:.4f}")
+    if p_value < 0.05:
+        print(f"  → Phases are significantly non-uniform (concentrated around {np.degrees(mean_angle):.1f}°)")
+    else:
+        print(f"  → Phases are uniformly distributed (no preferred phase)")
+
+    # plt.show()
+else:
+    if plot_phase_polar:
+        print("No phase data available for polar plot")
 
 
 # Create grand average of EEG signal centered on downstates
