@@ -96,7 +96,7 @@ def load_stimulation_data(file_path):
                             # Fallback to channel number
                             match = re.search(r'to (\d+)', event)
                             label = f"Channel: {match.group(1)}" if match else event
-                    else:
+                    elif '.wav' in event:
                         # It's a sound file - extract just the filename
                         sound_file = event.split()[0]  # Get first word (filename)
                         label = f"Cue: {sound_file}"
