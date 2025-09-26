@@ -142,7 +142,8 @@ class FileLoadingThread(QThread):
     """Thread for loading CSV files without blocking the UI."""
     loading_complete = pyqtSignal(bool, str)
     progress_update = pyqtSignal(str)
-    
+    progress_value = pyqtSignal(int)  # Add signal for progress percentage
+
     def __init__(self, simulator, load_type):
         super().__init__()
         self.simulator = simulator
@@ -384,17 +385,20 @@ class MuseOSCSimulator(QMainWindow):
                 # Emit progress update if in thread
                 if hasattr(self, 'loading_thread') and self.loading_thread and self.loading_thread.isRunning():
                     self.loading_thread.progress_update.emit("Synchronizing sleep stages with EEG data...")
-                
+
                 # Interpolate sleep stages to match EEG timestamps
                 if 'timestamps' in ss_df.columns:
                     ss_timestamps = ss_df['timestamps'].values
                     ss_timestamps = ss_timestamps - ss_timestamps[0]
                     sleep_stages = ss_df['sleep_stage'].values
-                    
+
                     # Map sleep stages to indices
                     stage_indices = [self.sleep_stage_map.get(stage, 12) for stage in sleep_stages]
-                    
+
                     # For each EEG timestamp, find the closest sleep stage
+                    total_samples = len(self.timestamps)
+                    last_progress = -1
+
                     for i, eeg_ts in enumerate(self.timestamps):
                         # Find the closest timestamp in sleep stages
                         idx = np.argmin(np.abs(ss_timestamps - eeg_ts))
@@ -403,6 +407,13 @@ class MuseOSCSimulator(QMainWindow):
                             self.sleep_scores[i] = stage_indices[idx]
                         else:
                             self.sleep_scores[i] = 12  # Default to Wake if too far
+
+                        # Emit progress every 1% or so
+                        if hasattr(self, 'loading_thread') and self.loading_thread and self.loading_thread.isRunning():
+                            current_progress = int((i + 1) * 100 / total_samples)
+                            if current_progress != last_progress:
+                                self.loading_thread.progress_value.emit(current_progress)
+                                last_progress = current_progress
                 else:
                     # If no timestamps, assume uniform distribution
                     sleep_stages = ss_df['sleep_stage'].values
@@ -470,25 +481,27 @@ class MuseOSCSimulator(QMainWindow):
     def update_data_loading(self):
         """Update data loading when files are selected."""
         if self.eeg_filepath:
-            # Create progress dialog
+            # Create progress dialog with proper range for percentage
             self.progress_dialog = QProgressDialog(
                 "Loading CSV files...\n\nThis may take a while for large files.",
                 None,  # No cancel button
-                0, 0,  # Indeterminate progress
+                0, 100,  # Progress from 0 to 100%
                 self
             )
             self.progress_dialog.setWindowTitle("Loading Data")
             self.progress_dialog.setWindowModality(Qt.WindowModal)
             self.progress_dialog.setMinimumDuration(0)  # Show immediately
+            self.progress_dialog.setValue(0)  # Start at 0%
             self.progress_dialog.show()
-            
+
             # Process events to ensure dialog appears
             QApplication.processEvents()
-            
+
             # Create and start loading thread
             self.loading_thread = FileLoadingThread(self, 'csv')
             self.loading_thread.loading_complete.connect(self.on_loading_complete)
             self.loading_thread.progress_update.connect(self.on_loading_progress)
+            self.loading_thread.progress_value.connect(self.on_loading_progress_value)
             self.loading_thread.start()
     
     def on_loading_progress(self, message):
@@ -496,7 +509,13 @@ class MuseOSCSimulator(QMainWindow):
         if hasattr(self, 'progress_dialog'):
             self.progress_dialog.setLabelText(message)
             QApplication.processEvents()
-    
+
+    def on_loading_progress_value(self, progress):
+        """Update progress dialog with percentage value."""
+        if hasattr(self, 'progress_dialog'):
+            self.progress_dialog.setValue(progress)
+            QApplication.processEvents()
+
     def on_loading_complete(self, success, message):
         """Handle completion of file loading."""
         # Close progress dialog
