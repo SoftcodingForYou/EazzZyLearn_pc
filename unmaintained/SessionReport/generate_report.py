@@ -1,6 +1,6 @@
 # Parameters
 # =========================================================================
-input_dir               = r'D:\NextcloudInteraxon\Research\DeepSleepStimulation\EazzZyLearn_output\YYYY_mm_dd\Generic'
+input_dir               = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\EazzZyLearn_output\2025_09_04_1945\Offline_NON_Inverted'
 run_extraction          = False # True or False for long step to be done
 
 # Stims per hour (/X etimated hours of recordings in sleep study)
@@ -50,16 +50,16 @@ generate_outputs        = GenerateOutputs(subject, input_dir, stim_range)
 # -------------------------------------------------------------------------
 print("Extracting basic sleep metrics ...")
 generate_outputs.basic_sleep_metrics()
-print("Done!")
+print("   Done")
 
 # Stimulations
 # -------------------------------------------------------------------------
 print("Extracting stimulation metrics ...")
 generate_outputs.stimulation_analysis()
-print("Done!")
+print('   Done')
 
 print("Generating file")
 generate_outputs.output_svg()
-print("Done")
+print('   Done')
 
 print("Report generated in {}".format(generate_outputs.save_path))

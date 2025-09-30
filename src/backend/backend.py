@@ -58,11 +58,20 @@ class Backend(Receiver):
 
         self.current_time       = float(0.0)
         self.monitor_iterations = int(0)
-        self.monitor_interval   = int(3) # seconds
+        self.monitor_interval   = int(5) # seconds
         self.monitor_running    = True
+        
+        # Buffer copy for monitoring (updated periodically)
+        self.monitor_buffer     = None # Whole range passband filtered signal
+        self.monitor_buffer2    = None # Delta filtered signal
+        self.monitor_timestamps = None
+        
         self.monitor_thread     = Thread(
             target=self.runtime_monitor, daemon=True, name='runtime_monitor')
         self.monitor_thread.start()
+
+        # Sound feedback loop state
+        self.debugging_sound_loop_thread = None
 
 
     def real_time_algorithm(self, buffer, timestamps):
@@ -82,9 +91,30 @@ class Backend(Receiver):
         self.HndlDt.master_write_data(buffer, timestamps, self.HndlDt.eeg_path)
 
 
+        # Debugging option: Check for sound-EEG feedback loop mode
+        # -----------------------------------------------------------------
+        if self.gui.sound_feedback_enabled:
+            # Check if thread is None or not alive (finished playing)
+            if self.debugging_sound_loop_thread is None or not self.debugging_sound_loop_thread.is_alive():
+                self.debugging_sound_loop_thread = Thread(target=self.Cng.master_cue_stimulate,
+                    args=(self.HndlDt.chosen_cue, self.HndlDt.soundarray,
+                    self.HndlDt.soundsampling, self.HndlDt.cue_dir,
+                    self.HndlDt.stim_path, current_time))
+                self.debugging_sound_loop_thread.daemon = True
+                self.debugging_sound_loop_thread.start()
+            return  # Skip all other processing
+
+
         # Extract signals (whole freq range, delta, slow delta)
         # -----------------------------------------------------------------
         v_wake, v_sleep, v_filtered_delta, v_delta, v_slowdelta = self.SgPrc.master_extract_signal(buffer)
+
+
+        # Update monitor buffer periodically (only if plotting is enabled)
+        if self.gui.plot_enabled and self.monitor_iterations == self.HndlDt.sample_rate * self.monitor_interval:
+            self.monitor_buffer = v_sleep.copy()
+            self.monitor_buffer2 = v_filtered_delta.copy()
+            self.monitor_timestamps = timestamps.copy()
 
 
         # Sleep and wake staging
@@ -172,6 +202,15 @@ class Backend(Receiver):
                 monitor = round(self.monitor_iterations / self.monitor_interval)
                 self.gui.update_speed_text(f"Runtime speed: {monitor} Hz")
                 self.monitor_iterations = 0
+
+            # Update sleep states display
+            self.gui.update_sleep_states(self.Stg.isawake, self.Stg.issws)
+
+            # Update plot if buffer is available and plotting is enabled
+            if self.gui.plot_enabled and self.monitor_buffer is not None:
+                # Safe to access monitor_buffer - it's a copy updated periodically
+                # Pass both buffers to GUI for plotting
+                self.gui.update_plot(self.monitor_buffer, self.monitor_buffer2)
 
             dt = datetime.fromtimestamp(self.current_time/1000) # Needs to be seconds
             formatted_time = dt.strftime("%H:%M:%S")

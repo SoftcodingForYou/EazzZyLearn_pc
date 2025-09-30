@@ -1,9 +1,20 @@
 # Entrypoint device
 # -------------------------------------------------------------------------
+
 DEVICE          = {
     "OpenBCI":  False,
     "Muse":     True,
 }
+
+IS_OFFLINE_SESSION = False # True if incoming signal stream is a simulated session
+
+
+# Debugging options
+# -------------------------------------------------------------------------
+
+ENABLE_SIGNAL_PLOT = False # Enable/disable real-time signal plotting
+SOUND_FEEDBACK_LOOP = False # Enable/disable sound-EEG feedback loop for testing
+
 
 # Recording session information (to be set for each participant)
 # -------------------------------------------------------------------------
@@ -164,7 +175,7 @@ FREQUENCY_BANDS = {
     'Beta':     (12,  40),
     'Gamma':    (25,  45),
     'Whole':    (0.1, 45),
-    'LineNoise':(49,  51)}
+    'LineNoise':(49,  61)} # We cover the 50 Hz and 60 Hz bands since we won't use any frequencies in between anyways
 
 
 # Evaluated on n=46 EGI HGSC128 datasets using Fp1:

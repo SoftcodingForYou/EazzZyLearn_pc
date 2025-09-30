@@ -33,13 +33,26 @@ class Cueing:
         # Launch background ambient sound
         sd.play(sound_faded, soundsampling, blocking = False, loop = False)
 
+
+    # def is_audio_device_available(self):
+    #     devices = sd.query_devices()
+    #     if any(d['max_output_channels'] > 0 for d in devices if isinstance(d, dict)):
+    #         return True
+    #     else:
+    #         return False
+
     
     def cue_play(self, cue_array, sample_rate):
         # =================================================================
         # Simple methid that plays back a numpy array as sound.
         # playsound library is not recommended as it has high latency.
         # =================================================================
-        sd.play(cue_array, sample_rate)
+        try:
+            sd.play(cue_array, sample_rate)
+        except sd.PortAudioError:
+            print('Audio device unavailable - Stimulation got annotated but no sound was played!')
+        except:
+            print('UNHANDLED ERROR: Failed to play audio')
         # sd.wait() # Stops python interpreter until sound played entirely
 
 

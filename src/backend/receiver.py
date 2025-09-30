@@ -27,6 +27,7 @@ class Receiver:
         self.ip             = p.IP
         self.port           = p.PORT
         self.sample_rate    = p.SAMPLERATE
+        self.simulated_timestamp = 0.0
 
         # Set buffer parameters
         self.buffer_length  = p.MAIN_BUFFER_LENGTH
@@ -38,6 +39,11 @@ class Receiver:
         # Using Muse devices
         self.use_muse_sleep_classifier = p.USE_MUSE_SLEEP_CLASSIFIER
         self.current_muse_metrics = None
+
+        if p.IS_OFFLINE_SESSION:
+            self.get_time_stamp = self.get_time_stamp_simulated
+        else:
+            self.get_time_stamp = self.get_time_stamp_real
 
         if p.DEVICE["OpenBCI"]:
             self.prep_udp_server(self.ip, self.port) # Connect to net
@@ -52,7 +58,7 @@ class Receiver:
         self.receiver_thread = Thread(
             target=self.fill_buffer,
             name='receiver_thread',
-            daemon=False)
+            daemon=True) # Make daemon so it doesn't block program exit
         
         # Initialize zeros buffer and time stamps
         self.buffer         = self.prep_buffer(self.num_channels, self.buffer_length)
@@ -134,6 +140,7 @@ class Receiver:
 
             self.current_eeg_data = new_eeg_data
             self.eeg_queue.put((new_eeg_data, self.get_time_stamp()))
+            self.bump_simulated_timestamp()
         else:
             print(f"Warning: Received {len(args)} EEG values, expected at least 4")
 
@@ -181,9 +188,17 @@ class Receiver:
         return eeg_data, self.get_time_stamp()
 
 
-    def get_time_stamp(self):
+    def get_time_stamp_real(self):
         # return round(time.perf_counter() * 1000 - self.start_time, 4)
         return round(time.time_ns() / 1000000, 4)
+    
+
+    def get_time_stamp_simulated(self):
+        return self.simulated_timestamp
+    
+
+    def bump_simulated_timestamp(self):
+        self.simulated_timestamp += 1000 / self.sample_rate
     
 
     def get_current_osc_sample(self):

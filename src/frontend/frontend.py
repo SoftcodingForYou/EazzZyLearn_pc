@@ -1,6 +1,9 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QComboBox, QLabel, QCheckBox
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                            QPushButton, QComboBox, QLabel, QCheckBox,
+                            QMenuBar, QMenu, QAction, QMessageBox)
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QMetaObject, Q_ARG
+from frontend.pyqt_native_plot_widget import NativePlotWidget
 import sys
 import parameters as p
 import os
@@ -38,7 +41,7 @@ class Frontend(QMainWindow):
 
         super().__init__()
         self.setWindowTitle("EazzZyLearn")
-        self.setGeometry(100, 100, 350, 225)
+        self.setGeometry(100, 100, 700, 500)  # Larger window for plot
         # self.setFixedSize(350, 200)  # Lock window size
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)  # Remove maximize button
 
@@ -46,6 +49,9 @@ class Frontend(QMainWindow):
         icon_path = os.path.join(os.path.dirname(__file__), 'assets', 'icon.png')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
+        
+        # Create menu bar
+        self.create_menu_bar()
 
         # Create central widget and layout
         central_widget = QWidget()
@@ -62,7 +68,11 @@ class Frontend(QMainWindow):
         # Create flip signal checkbox
         self.flip_signal = p.FLIP_SIGNAL
         self.flip_signal_checkbox = QCheckBox("Flip signal")
-        
+
+        # Initialize debugging settings from parameters
+        self.sound_feedback_enabled = p.SOUND_FEEDBACK_LOOP # Used in real_time_algorithm()
+        self.plot_enabled = p.ENABLE_SIGNAL_PLOT
+
         # Create buttons
         self.start_button = QPushButton("Enable")
         self.force_button = QPushButton("Force")
@@ -87,6 +97,21 @@ class Frontend(QMainWindow):
             }
         """)
 
+        self.stage_label = QLabel("Unknown stage ...")
+        self.stage_label.setStyleSheet("""
+            QLabel {
+                color: #333333;
+                font-size: 12px;
+                padding: 5px;
+            }
+        """)
+
+        # Create native PyQt5 plot widget (only if enabled)
+        if self.plot_enabled:
+            self.plot_widget = NativePlotWidget(p.MAIN_BUFFER_LENGTH, p.SAMPLERATE)
+        else:
+            self.plot_widget = None
+
         # Add widgets to layout
         layout.addWidget(channel_label)
         layout.addWidget(self.channel_combo)
@@ -96,6 +121,9 @@ class Frontend(QMainWindow):
         layout.addWidget(self.stop_button)
         layout.addWidget(self.status_label)
         layout.addWidget(self.speed_label)
+        layout.addWidget(self.stage_label)
+        if self.plot_widget:
+            layout.addWidget(self.plot_widget)
 
         # Connect button signals
         self.start_button.clicked.connect(self.start_stimulation)
@@ -116,6 +144,65 @@ class Frontend(QMainWindow):
         self.force_button.setProperty("active", False)
         self.stop_button.setProperty("active", False)
         self.set_stylesheet()
+    
+    def create_menu_bar(self):
+        """Create the menu bar with File and Settings menus."""
+        menubar = self.menuBar()
+        
+        # File menu
+        file_menu = menubar.addMenu('File')
+        
+        # Settings action
+        settings_action = QAction('Session Settings...', self)
+        settings_action.setShortcut('Ctrl+S')
+        settings_action.triggered.connect(self.show_settings_dialog)
+        file_menu.addAction(settings_action)
+        
+        file_menu.addSeparator()
+        
+        # Exit action
+        exit_action = QAction('Exit', self)
+        exit_action.setShortcut('Ctrl+Q')
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # Help menu
+        help_menu = menubar.addMenu('Help')
+        
+        # About action
+        about_action = QAction('About', self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+    
+    def show_settings_dialog(self):
+        """Show the settings dialog for runtime configuration."""
+        from frontend.settings_dialog import SettingsDialog
+        
+        # Warn user if recording is in progress
+        if hasattr(self, 'backend') and hasattr(self.backend, 'monitor_running'):
+            if self.backend.monitor_running:
+                reply = QMessageBox.warning(self, 'Recording in Progress',
+                                          'A recording session is currently active. '
+                                          'Changing settings now will only affect the next session. '
+                                          'Continue?',
+                                          QMessageBox.Yes | QMessageBox.No,
+                                          QMessageBox.No)
+                if reply != QMessageBox.Yes:
+                    return
+        
+        dialog = SettingsDialog(self)
+        if dialog.exec_() == SettingsDialog.Accepted:
+            QMessageBox.information(self, 'Settings Updated',
+                                  'Settings have been updated. '
+                                  'They will take effect in the next session.')
+    
+    def show_about(self):
+        """Show about dialog."""
+        QMessageBox.about(self, 'About EazzZyLearn',
+                        'EazzZyLearn v2025.06\n\n'
+                        'Real-time closed-loop neurofeedback system\n'
+                        'for sleep research and memory consolidation.\n\n'
+                        'Powered by Muse EEG technology.')
 
     def set_stylesheet(self):
         """Set the stylesheet for the buttons"""
@@ -152,7 +239,7 @@ class Frontend(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event"""
-        from PyQt5.QtWidgets import QMessageBox
+        from PyQt5.QtWidgets import QMessageBox, QApplication
         
         reply = QMessageBox.question(self, 'Confirm Exit',
                                    'Are you sure you want to exit?',
@@ -161,9 +248,18 @@ class Frontend(QMainWindow):
         
         if reply == QMessageBox.Yes:
             self.window_closed = True
-            time.sleep(1) # Give time to pick up `window_closed` change by backend
+            # Give backend time to detect window_closed flag
+            time.sleep(0.5)
+            # Force stop if backend exists and hasn't stopped yet
+            if hasattr(self, 'backend') and self.backend and not self.backend.stop:
+                print("Forcing backend shutdown...")
+                self.backend.monitor_running = False
+                self.backend.stop_receiver()
+                time.sleep(0.5)  # Give time for threads to cleanup
             print("GUI stopped")
             event.accept()  # Accept the close event
+            # Ensure application terminates
+            QApplication.quit()
         else:
             event.ignore()  # Ignore the close event
 
@@ -210,11 +306,48 @@ class Frontend(QMainWindow):
 
     def update_status_text(self, text):
         """Update the status label text"""
-        self.status_label.setText(f"{text}")
+        if not self.window_closed and self.status_label:
+            self.status_label.setText(f"{text}")
 
     def update_speed_text(self, text):
         """Update the speed label text"""
-        self.speed_label.setText(f"{text}")
+        if not self.window_closed and self.speed_label:
+            self.speed_label.setText(f"{text}")
+    
+    def update_sleep_states(self, is_awake, is_sws):
+        """Update the sleep state display"""
+        if not self.window_closed and self.status_label:
+            wake_text = f"Awake: {is_awake}"
+            deep_sleep_text = f"Deep Sleep: {is_sws}"
+            self.stage_label.setText(f"{wake_text} | {deep_sleep_text}")
+    
+    # Thread-safe signal for plot updates
+    plot_update_signal = pyqtSignal(object, object)
+    
+    def update_plot(self, buffer_data, buffer_data2=None):
+        """Thread-safe update of the EEG plot with new buffer data"""
+        if not self.window_closed and buffer_data is not None:
+            try:
+                # Make copies to avoid threading issues
+                buffer_copy = buffer_data.copy() if buffer_data is not None else None
+                buffer2_copy = buffer_data2.copy() if buffer_data2 is not None else None
+                
+                # Use Qt's thread-safe method invocation
+                QMetaObject.invokeMethod(self, "_update_plot_gui",
+                                        Qt.QueuedConnection,
+                                        Q_ARG(object, buffer_copy),
+                                        Q_ARG(object, buffer2_copy))
+            except Exception as e:
+                print(f"Plot update error: {e}")
+    
+    @pyqtSlot(object, object)
+    def _update_plot_gui(self, buffer_data, buffer_data2):
+        """GUI thread update of plot widget"""
+        if not self.window_closed:
+            try:
+                self.plot_widget.update_data(buffer_data, buffer_data2)
+            except Exception as e:
+                print(f"Plot widget update error: {e}")
 
 def main():
     app = QApplication(sys.argv)

@@ -112,10 +112,11 @@ class DiskIO():
         This should be called when no more lines will be written to ensure all
         data is saved to disk and resources are released.
         """
+        print(f'Closing file manager for {self.flush_thread.name} ...')
         for file_handle in self.file_handles.values():
             try:
                 file_handle.close()
             except:
                 pass
         self.file_handles.clear()
-        print('Closed files')
+        print('   Closed')

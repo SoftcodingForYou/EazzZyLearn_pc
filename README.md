@@ -8,7 +8,7 @@ The system features dual sleep classification methods:
 - **Traditional spectral analysis** with research-validated thresholds (85.88% accuracy)
 - **Advanced machine learning classification** using pre-trained sleep staging models
 
-All parameters for online analysis and stimulation are configured in **`PythonVersion/parameters.py`**.
+All parameters for online analysis and stimulation are configured in **`src/parameters.py`**.
 
 ## Compatibility
 - Interaxon Inc. Muse 2, Muse S 2nd Gen and Muse S Athena
@@ -27,9 +27,9 @@ EazzZyLearn offers three execution modes for different research phases:
 
 | Mode | Script | Purpose |
 | :---- | :---- | :---- |
-| Sleep Study | `python PythonVersion/main_SLEEP.py` | Real-time sleep monitoring and cue delivery during slow wave sleep |
-| Study/Encoding | `python PythonVersion/main_STUDY.py` | Cognitive task accompaniment with background sounds and periodic cues for memory encoding |
-| Developer Mode | `python PythonVersion/main_DEVELOPERMODE.py` | Development and testing with simulated EEG data |
+| Sleep Study | `python src/main_SLEEP.py` | Real-time sleep monitoring and cue delivery during slow wave sleep |
+| Study/Encoding | `python src/main_STUDY.py` | Cognitive task accompaniment with background sounds and periodic cues for memory encoding |
+| Developer Mode | `python src/main_DEVELOPERMODE.py` | Development and testing with simulated EEG data |
 
 ### Targeted Memory Reactivation Workflow
 1. **Encoding Phase** (`main_STUDY.py`): Present background sounds with periodic cue sounds during cognitive tasks to create memory-cue associations
@@ -118,13 +118,13 @@ An anticipated **ending/quitting of the code will not lead to any data loss if e
 
 ## Compilation
 The main_[...].py scripts are compilable via Nuitka:
-`python3.12 -m nuitka --standalone --follow-imports --include-package=PyQt5 --enable-plugin=pyqt5 --include-data-dir=PythonVersion/frontend/assets=frontend/assets --include-data-dir=Sounds=Sounds --output-dir=build --output-filename=EazzZyLearn.exe --windows-icon-from-ico=EazzZyLearn.ico ./PythonVersion/main_SLEEP.py`
+`python3.12 -m nuitka --standalone --follow-imports --include-package=PyQt5 --enable-plugin=pyqt5 --include-data-dir=src/frontend/assets=frontend/assets --include-data-dir=sounds=sounds --output-dir=build --output-filename=EazzZyLearn.exe --windows-icon-from-ico=EazzZyLearn.ico ./src/main_SLEEP.py`
 
 Note that there is no `--onefile` comílation flag, as this is changing the way paths are handled and leads to assets not being found.
 
 
 ## Code Execution and Interaction
-Execute the desired mode script (e.g., `python PythonVersion/main_SLEEP.py`) and the system will run until stopped manually. During execution, real-time control is available through a GUI control window:
+Execute the desired mode script (e.g., `python src/main_SLEEP.py`) and the system will run until stopped manually. During execution, real-time control is available through a GUI control window:
 
 ![Control Window](assets/image8_Control_Window.png)
 
@@ -151,7 +151,7 @@ General working scheme of the code shown below:
 The system is organized in a modular structure with separate backend and frontend components:
 
 ```
-PythonVersion/
+src/
 ├── backend/           # Core processing modules
 │   ├── backend.py     # Master controller and real-time algorithm
 │   ├── receiver.py    # OSC data reception and buffering
