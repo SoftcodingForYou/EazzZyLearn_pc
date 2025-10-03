@@ -26,7 +26,7 @@ Muse EEG Device → OSC Streaming → Signal Processing → Sleep Classification
 ### Language Implementations
 - **PythonVersion/**: Primary implementation (production-ready)
 - **JavaVersion/**: Android port with equivalent architecture
-- **SessionReport/**: Post-session analysis and reporting tools
+- **src/standalone_utils/**: Post-session analysis and reporting tools
 
 ## Development Commands
 
@@ -129,10 +129,17 @@ Real-time GUI controls during execution:
 
 ## Data Output Format
 All outputs stored as comma-separated text files with consistent headers:
-- **`*_eeg.txt`**: Raw multi-channel EEG signals with timestamps
+- **`*_eeg.txt`**: Raw multi-channel EEG signals with timestamps (unfiltered, direct from hardware)
 - **`*_stage.txt`**: Sleep/wake staging decisions with method identification
-- **`*_pred.txt`**: Detected downstates and predicted upstates
+- **`*_pred.txt`**: Detected downstates and predicted upstates (empty in sound feedback mode)
 - **`*_stim.txt`**: Stimulation events, manual controls, and system state changes
+
+### Data Storage Details
+- **EEG Storage**: `master_write_data()` saves raw, unfiltered EEG data BEFORE any signal processing
+- **No Filtering Delay**: Data is stored directly from OSC stream with only NaN interpolation and optional polarity correction
+- **Timestamps**: Absolute Unix epoch timestamps in milliseconds (not normalized)
+- **Buffered Writing**: Asynchronous background thread writes every 30 seconds (7680 samples @ 256Hz)
+- **CSV Format**: Each row contains `timestamp, ch1, ch2, ch3, ch4, ...`
 
 ### Enhanced Sleep Staging Output
 When using Muse classifier, stage files include:
@@ -186,5 +193,65 @@ When using Muse classifier, stage files include:
 - **Muse Classifier**: Research-grade accuracy with real-time performance
 - **Timing Precision**: Sub-millisecond cue delivery accuracy
 - **System Latency**: Total processing latency <50ms for real-time applications
+
+## Post-Session Analysis
+
+### Session Report Tool (`src/standalone_utils/post_session_report.py`)
+Comprehensive offline analysis tool for recorded sessions with configurable plot generation:
+
+#### Available Analysis Plots
+Configure which plots to generate by setting flags to `True`:
+- **`plot_raw_signal`**: Whole-range signal (0.1-45 Hz) with notch filter
+- **`plot_delta_signal`**: Delta band signal (0.5-4 Hz)
+- **`plot_stimulation_timeseries`**: Delta signal with overlaid stimulation markers and downstate/upstate detections
+- **`plot_detection_accuracy`**: Histogram of downstate detection timing accuracy
+- **`plot_prediction_accuracy`**: Histogram of upstate prediction timing accuracy
+- **`plot_phase_polar`**: Polar plot of signal phase at predicted upstate times with Rayleigh statistics
+- **`plot_grand_average_so`**: Event-related potential around detected downstates (for closed-loop mode)
+- **`plot_grand_average_stim`**: Event-related potential around audio stimulations (for sound feedback mode)
+- **`plot_time_freq`**: Time-frequency spectrogram around events
+
+#### Key Features
+- **Dual Analysis Modes**:
+  - Closed-loop mode: Analyzes downstate detections and upstate predictions from `*_pred.txt`
+  - Sound feedback mode: Analyzes audio cue events from `*_stim.txt`
+- **Signal Reconstruction**: Automatically reconstructs the analyzed channel including mid-session channel switches
+- **Accuracy Metrics**: Compares real-time detection/prediction timestamps with offline ground truth
+- **Phase Analysis**: Circular statistics (Rayleigh test) for phase-locking validation
+- **Grand Averaging**: Event-related potentials with confidence intervals and individual epoch overlays
+- **Edge Handling**: Automatic exclusion of epochs too close to recording boundaries
+- **Diagnostic Output**: Timestamp alignment validation and event count summaries
+
+#### Usage Example
+```python
+# Configure file paths
+ezl_eeg_path = r'path/to/*_eeg.txt'
+ezl_pred_path = r'path/to/*_pred.txt'  # Optional, for closed-loop analysis
+ezl_stim_path = r'path/to/*_stim.txt'
+
+# Enable desired plots
+plot_grand_average_stim = True  # For sound feedback sessions
+plot_detection_accuracy = True  # For closed-loop sessions with predictions
+
+# Run the script
+python src/standalone_utils/post_session_report.py
+```
+
+#### Output Files
+All plots saved to the same directory as input files:
+- `whole_range_signal.png`
+- `delta_signal.png`
+- `slow_wave_and_stimulations.png`
+- `downstate_detection_accuracy.png`
+- `upstate_prediction_accuracy.png`
+- `phase_polar_plot.png`
+- `grand_average.png` (downstates)
+- `grand_average_stimulations.png` (audio cues)
+- `time_frequency.png`
+
+#### Signal Processing for Visualization
+- **Lowpass 20 Hz**: Clean signal for 0-10 Hz pattern visualization (recommended for stimulation timeseries)
+- **Delta (0.5-4 Hz)**: Standard slow oscillation analysis
+- **Slow Delta (0.5-2 Hz)**: For phase analysis and upstate prediction validation
 
 This system represents a state-of-the-art real-time neurofeedback platform specifically designed for sleep research and memory consolidation studies, featuring both traditional signal processing and cutting-edge machine learning approaches for optimal accuracy and reliability.
