@@ -70,7 +70,7 @@ class Frontend(QMainWindow):
         self.flip_signal_checkbox = QCheckBox("Flip signal")
 
         # Initialize debugging settings from parameters
-        self.sound_feedback_enabled = p.SOUND_FEEDBACK_LOOP # Used in real_time_algorithm()
+        self.sound_feedback_loop_enabled = p.SOUND_FEEDBACK_LOOP # Used in real_time_algorithm()
         self.plot_enabled = p.ENABLE_SIGNAL_PLOT
 
         # Create buttons

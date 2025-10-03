@@ -91,20 +91,6 @@ class Backend(Receiver):
         self.HndlDt.master_write_data(buffer, timestamps, self.HndlDt.eeg_path)
 
 
-        # Debugging option: Check for sound-EEG feedback loop mode
-        # -----------------------------------------------------------------
-        if self.gui.sound_feedback_enabled:
-            # Check if thread is None or not alive (finished playing)
-            if self.debugging_sound_loop_thread is None or not self.debugging_sound_loop_thread.is_alive():
-                self.debugging_sound_loop_thread = Thread(target=self.Cng.master_cue_stimulate,
-                    args=(self.HndlDt.chosen_cue, self.HndlDt.soundarray,
-                    self.HndlDt.soundsampling, self.HndlDt.cue_dir,
-                    self.HndlDt.stim_path, current_time))
-                self.debugging_sound_loop_thread.daemon = True
-                self.debugging_sound_loop_thread.start()
-            return  # Skip all other processing
-
-
         # Extract signals (whole freq range, delta, slow delta)
         # -----------------------------------------------------------------
         v_wake, v_sleep, v_filtered_delta, v_delta, v_slowdelta = self.SgPrc.master_extract_signal(buffer)
@@ -115,6 +101,23 @@ class Backend(Receiver):
             self.monitor_buffer = v_sleep.copy()
             self.monitor_buffer2 = v_filtered_delta.copy()
             self.monitor_timestamps = timestamps.copy()
+
+
+        # Debugging option: Check for sound-EEG feedback loop mode
+        # -----------------------------------------------------------------
+        if self.gui.sound_feedback_loop_enabled:
+            # Check if thread is None or not alive (finished playing) AND outside refractory period
+            if (self.debugging_sound_loop_thread is None or
+                not self.debugging_sound_loop_thread.is_alive()) and \
+               current_time > self.Cng.stim_time + self.Cng.len_refractory:
+                self.Cng.stim_time = current_time
+                self.debugging_sound_loop_thread = Thread(target=self.Cng.master_cue_stimulate,
+                    args=(self.HndlDt.chosen_cue, self.HndlDt.soundarray,
+                    self.HndlDt.soundsampling, self.HndlDt.cue_dir,
+                    self.HndlDt.stim_path, current_time))
+                self.debugging_sound_loop_thread.daemon = True
+                self.debugging_sound_loop_thread.start()
+            return  # Skip all other processing
 
 
         # Sleep and wake staging

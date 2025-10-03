@@ -28,6 +28,7 @@ plot_detection_accuracy     = False
 plot_prediction_accuracy    = False
 plot_phase_polar            = False
 plot_grand_average_so       = False
+plot_grand_average_stim     = False
 plot_time_freq              = False
 
 
@@ -377,12 +378,14 @@ if plot_stimulation_timeseries:
     if raw_stim is not None and len(raw_stim) > 0:
         # Filter for cue events only
         cue_events = raw_stim[raw_stim['label'].str.contains('Cue:')]
+        first_cue = True
         for _, row in cue_events.iterrows():
             if row['ts'] <= timestamps_ezl[-1]:  # Only plot if within time range
-                ax.axvline(x=row['ts'], color='blue', alpha=0.3, linestyle='--', linewidth=1)
-        
-        # Add legend entry for cues
-        ax.axvline(x=-999999, color='blue', alpha=0.3, linestyle='--', label='Cue onset')
+                if first_cue: # For legend
+                    ax.axvline(x=row['ts'], color='blue', alpha=0.3, linestyle='--', linewidth=1, label='Cue onset')
+                    first_cue = False
+                else:
+                    ax.axvline(x=row['ts'], color='blue', alpha=0.3, linestyle='--', linewidth=1)
 
     ax.set_xlabel('Time (ms)')
     ax.set_ylabel('Amplitude (µV)')
@@ -902,14 +905,14 @@ def stim_time_freq(epochs_array, sample_rate=256):
 if plot_time_freq:
     pre_time = 2.0  # seconds before downstate
     post_time = 3.0  # seconds after downstate
-    
+
     pre_samples = int(pre_time * sampling_rate)
     post_samples = int(post_time * sampling_rate)
     total_samples = pre_samples + post_samples + 1  # +1 for the center point
-    
+
     # Initialize list to store all epochs
     whole_range_epochs = []
-    
+
     # Extract epochs around each downstate
     for _, row in raw_pred.iterrows():
         downstate_time = row['downstate_time']
@@ -919,4 +922,123 @@ if plot_time_freq:
             whole_range_epochs.append(whole_range_epoch)
 
     stim_time_freq(np.array(whole_range_epochs))
+
+
+# Create grand average of EEG signal centered on stimulation events
+# --------------------------------------------------------------------------------------------------
+if raw_stim is not None and len(raw_stim) > 0 and plot_grand_average_stim:
+
+    from scipy.signal import butter, filtfilt
+    b_lowpass, a_lowpass = butter(3, 20, btype='lowpass', fs=sampling_rate)
+    v_lowpass = filtfilt(b_lowpass, a_lowpass, eeg_raw_ezl[sigproc.channel, :], padlen=int(buffer_length/10-1))
+    # v_lowpass = eeg_raw_ezl[sigproc.channel, :]
+    v_lowpass = v_lowpass - np.mean(v_lowpass)
+
+
+    # Get only cue events (audio stimulations)
+    cue_events = raw_stim[raw_stim['label'].str.contains('Cue:')].copy()
+
+    if len(cue_events) > 0:
+        # Parameters for the window
+        pre_time = 0.05  # seconds before stimulation
+        post_time = 0.5  # seconds after stimulation
+
+        pre_samples = int(pre_time * sampling_rate)
+        post_samples = int(post_time * sampling_rate)
+        total_samples = pre_samples + post_samples + 1  # +1 for the center point
+
+        # Initialize list to store all epochs
+        epochs = []
+
+        # Extract epochs around each stimulation
+        for idx, (_, row) in enumerate(cue_events.iterrows()):
+            stim_time = row['ts']
+
+            # Find the closest index in the timestamps
+            stim_idx = np.argmin(np.abs(timestamps_ezl - stim_time))
+
+            # Check if we have enough data before and after
+            if stim_idx - pre_samples >= 0 and stim_idx + post_samples < len(timestamps_ezl):
+                # Extract epoch from delta signal
+                # epoch = eeg_raw_ezl[sigproc.channel, stim_idx - pre_samples:stim_idx + post_samples + 1]
+                epoch = v_lowpass[stim_idx - pre_samples:stim_idx + post_samples + 1]
+                epochs.append(epoch)
+
+        if len(epochs) > 0:
+            # Convert to numpy array and compute grand average
+            epochs_array = np.array(epochs)
+            grand_average = np.mean(epochs_array, axis=0)
+            std_error = np.std(epochs_array, axis=0) / np.sqrt(len(epochs))
+
+            # Create time axis for plotting
+            time_axis = np.linspace(-pre_time, post_time, total_samples) * 1000  # Convert to ms
+
+            # Plot the grand average
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+
+            # Plot 1: Grand average with confidence interval
+            ax1.plot(time_axis, grand_average, 'b-', linewidth=2, label='Grand Average')
+            ax1.fill_between(time_axis,
+                             grand_average - std_error,
+                             grand_average + std_error,
+                             alpha=0.3, color='blue', label='±SEM')
+            ax1.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='Stimulation onset')
+            ax1.axhline(y=0, color='gray', linestyle='-', alpha=0.3)
+            ax1.set_ylabel('Amplitude (µV)')
+            ax1.set_title(f'Grand Average of EEG around Stimulation Events (n={len(epochs)})')
+            ax1.legend(loc='upper right')
+            ax1.grid(True, alpha=0.3)
+
+            # Calculate y-limits based on confidence interval with some padding
+            y_min = np.min(grand_average - std_error)
+            y_max = np.max(grand_average + std_error)
+            y_range = y_max - y_min
+            y_padding = y_range * 3
+            ylim = (y_min - y_padding, y_max + y_padding)
+
+            # Plot 2: All individual epochs overlaid
+            ax2.plot(time_axis, epochs_array.T, alpha=0.1, color='gray', linewidth=0.5)
+            ax2.plot(time_axis, grand_average, 'b-', linewidth=2, label='Grand Average')
+            ax2.axvline(x=0, color='red', linestyle='--', alpha=0.7, label='Stimulation onset')
+            ax2.axhline(y=0, color='gray', linestyle='-', alpha=0.3)
+            ax2.set_xlabel('Time relative to stimulation (ms)')
+            ax2.set_ylabel('Amplitude (µV)')
+            ax2.set_title('Individual Epochs')
+            ax2.legend(loc='upper right')
+            ax2.grid(True, alpha=0.3)
+            ax2.set_ylim(ylim)
+
+            plt.tight_layout()
+
+            output_file = os.path.join(SAVE_PATH, 'grand_average_stimulations.png')
+            plt.savefig(output_file, bbox_inches='tight', dpi=150)
+            print(f"Grand average around stimulations saved to: {output_file}")
+
+            # plt.show()
+
+            # Print statistics
+            print(f"\nGrand Average Stimulation Statistics:")
+            print(f"  Total stimulation events: {len(cue_events)}")
+            print(f"  Valid epochs extracted: {len(epochs)}")
+            print(f"  Epochs excluded (edge effects): {len(cue_events) - len(epochs)}")
+            print(f"  Mean amplitude at stimulation (t=0): {grand_average[pre_samples]:.2f} µV")
+
+            # Find and report the minimum (trough) around the stimulation
+            search_window_ms = 100  # Search ±100ms around stimulation for the actual trough
+            search_samples = int(search_window_ms / 1000 * sampling_rate)
+            search_start = max(0, pre_samples - search_samples)
+            search_end = min(len(grand_average), pre_samples + search_samples)
+
+            trough_idx = search_start + np.argmin(grand_average[search_start:search_end])
+            trough_time = time_axis[trough_idx]
+            trough_value = grand_average[trough_idx]
+            print(f"  Trough value: {trough_value:.2f} µV at {trough_time:.1f} ms")
+        else:
+            print("No valid stimulation epochs could be extracted (edge effects)")
+    else:
+        print("No cue events found in stimulation file")
+else:
+    if plot_grand_average_stim:
+        print("No stimulation data available for grand average")
+
 print('Your last chance to set a breakpoint')
