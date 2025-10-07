@@ -143,10 +143,51 @@ class SignalProcessing():
 
 
     def master_extract_signal(self, buffer):
-        # =================================================================
-        # Extracts a signal array from the main buffer that is filtered 
-        # into usable frequency ranges.
-        # =================================================================
+        """
+        Extracts and filters EEG (or similar biosignal) data from a multi-channel buffer 
+        into multiple frequency-specific signal arrays.
+
+        This method takes a multi-channel time-series buffer and performs a sequence 
+        of filtering operations to remove noise and isolate relevant frequency bands. 
+        It returns versions of the signal suitable for wake and sleep analyses, as well 
+        as delta and slow-delta filtered signals.
+
+        Steps:
+            1. Selects the raw signal from the specified channel.
+            2. Removes electrical noise via a notch filter.
+            3. Bandpass filters the signal into a usable range (e.g., 0.1 - 45 Hz).
+            4. Applies online (causal) filters to extract delta and slow-delta bands.
+            5. Extracts arrays of appropriate lengths for wake/sleep processing.
+
+        Args:
+            buffer (np.ndarray):
+                2D array of shape (n_channels, n_samples) containing the recorded 
+                biosignal data. Each row corresponds to one channel, and each column 
+                to a time sample.
+
+        Returns:
+            tuple:
+                (
+                    v_wake (np.ndarray): 
+                        Bandpass-filtered signal (0.1 - 45 Hz) trimmed to wake buffer length.
+                    v_sleep (np.ndarray): 
+                        Bandpass-filtered signal (0.1 - 45 Hz) trimmed to sleep buffer length.
+                    v_filtered_delta (np.ndarray): 
+                        Delta-band filtered signal (untrimmed).
+                    v_delta (np.ndarray): 
+                        Delta-band signal trimmed to delta buffer length.
+                    v_slowdelta (np.ndarray): 
+                        Slow-delta signal trimmed to delta buffer length.
+                    v_clean_filtfilt (np.ndarray): 
+                        Notch-filtered signal with phase-preserving (filtfilt) filtering.
+                )
+
+        Notes:
+            - The filtering uses both zero-phase (`filtfilt`) and online (causal) filters. As such,
+                the delta and slow-delta signals are suitable for real-time applications, while the
+                notch-filtered signals are not!
+            - NaN interpolation is commented out but may be used if missing samples occur.
+        """
         v_raw           = buffer[self.channel, :]
 
         # nans, x = self.nan_helper(v_raw)
