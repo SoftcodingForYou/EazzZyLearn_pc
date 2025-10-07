@@ -304,6 +304,11 @@ class Frontend(QMainWindow):
         value = str(value)
         self.processing_channel = int(value[:value.find(':')])
 
+        if hasattr(self, 'backend') and hasattr(self.backend, 'SgPrc') and hasattr(self.backend, 'HndlDt'):
+            # We take care of this here because the real time loop might not be running yet and we would miss channel switches
+            self.backend.SgPrc.switch_channel(
+                self.processing_channel, self.backend.HndlDt.stim_path, self.backend.current_time)
+
     def update_status_text(self, text):
         """Update the status label text"""
         if not self.window_closed and self.status_label:

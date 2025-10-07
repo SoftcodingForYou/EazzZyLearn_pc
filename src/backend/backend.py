@@ -139,7 +139,9 @@ class Backend(Receiver):
             return
         elif self.gui.stimulation_state != self.softstate:
             self.define_stimulation_state(self.gui.stimulation_state)
+        
         if self.SgPrc.channel != self.gui.processing_channel - 1:
+            # This might not be triggered as we already take care of this flip in the frontend script
             self.SgPrc.switch_channel(self.gui.processing_channel, self.HndlDt.stim_path, 
                 current_time)
         
