@@ -223,7 +223,6 @@ with open(ezl_eeg_path, 'r', encoding='utf8') as file:
     lines = file.readlines()
 header_line = lines[0] # Header information of the eeg files
 recording = json.loads(header_line)
-{"date": "04-09-2025_19-45-57", "sample freq": "256", "subject name": "Offline_NON_Inverted", "age": "0", "sex": "Female", "chosencue": "gong", "electrodes": "{\"TP9\": 0, \"AF7\": 1, \"AF8\": 2, \"TP10\": 3}", "used elec": 1, "default threshold": -75, "artifact threshold": -300, "refractory duration": 6}
 recording_datetime  = recording_datetime = datetime.strptime(recording['date'], "%d-%m-%Y_%H-%M-%S")
 sampling_rate       = int(recording['sample freq'])
 subject_age         = int(recording['age'])
@@ -351,7 +350,7 @@ if raw_pred is not None and len(raw_pred) > 0:
 # --------------------------------------------------------------------------------------------------
 if plot_stimulation_timeseries:
     fig, ax = plt.subplots(figsize=(12, 6))
-    ax.plot(timestamps_ezl[:v_delta.size], v_delta, 'g-', alpha=0.5, label='Delta')
+    ax.plot(v_delta, 'g-', alpha=0.5, label='Delta')
 
     # Add scatter points for downstates and predicted upstates
     if raw_pred is not None and len(raw_pred) > 0:
@@ -367,7 +366,7 @@ if plot_stimulation_timeseries:
             # Find index for predicted upstate
             upstate_idx = np.argmin(np.abs(timestamps_ezl - row['predicted_upstate_time']))
             if upstate_idx < len(v_delta):
-                ax.scatter(row['predicted_upstate_time'], v_delta[upstate_idx], 
+                ax.scatter(upstate_idx, v_delta[upstate_idx], 
                         color='red', s=30, zorder=5, alpha=0.7)
         
         # Add legend entries for scatter points
@@ -381,11 +380,12 @@ if plot_stimulation_timeseries:
         first_cue = True
         for _, row in cue_events.iterrows():
             if row['ts'] <= timestamps_ezl[-1]:  # Only plot if within time range
+                stim_idx = np.argmin(np.abs(timestamps_ezl - row['ts']))
                 if first_cue: # For legend
-                    ax.axvline(x=row['ts'], color='blue', alpha=0.3, linestyle='--', linewidth=1, label='Cue onset')
+                    ax.axvline(x=stim_idx, color='blue', alpha=0.3, linestyle='--', linewidth=1, label='Cue onset')
                     first_cue = False
                 else:
-                    ax.axvline(x=row['ts'], color='blue', alpha=0.3, linestyle='--', linewidth=1)
+                    ax.axvline(x=stim_idx, color='blue', alpha=0.3, linestyle='--', linewidth=1)
 
     ax.set_xlabel('Time (ms)')
     ax.set_ylabel('Amplitude (µV)')
