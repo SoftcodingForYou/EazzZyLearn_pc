@@ -29,6 +29,7 @@ class SignalProcessing():
         # =================================================================
 
         self.channel                    = p.IDX_ELEC
+        self.reference_channel          = p.IDX_REF
         self.channels                   = list(p.ELEC.keys())
         
         filt_order                      = p.FILT_ORDER
@@ -153,7 +154,7 @@ class SignalProcessing():
         as delta and slow-delta filtered signals.
 
         Steps:
-            1. Selects the raw signal from the specified channel.
+            1. Selects the raw signal from the specified channel (optional re-referencing).
             2. Removes electrical noise via a notch filter.
             3. Bandpass filters the signal into a usable range (e.g., 0.1 - 45 Hz).
             4. Applies online (causal) filters to extract delta and slow-delta bands.
@@ -189,6 +190,11 @@ class SignalProcessing():
             - NaN interpolation is commented out but may be used if missing samples occur.
         """
         v_raw           = buffer[self.channel, :]
+
+        if self.reference_channel > -1:
+            v_ref       = buffer[self.reference_channel, :]
+            v_raw       = v_raw - v_ref
+
 
         # nans, x = self.nan_helper(v_raw)
         # v_raw[nans]= np.interp(x(nans), x(~nans), v_raw[~nans])
@@ -252,3 +258,19 @@ class SignalProcessing():
             print(line)
         else:
             print('Channel already set to ' + number_pressed + ' (' + self.channels[self.channel] +')')
+
+
+    def switch_online_reference_channel(self, number_pressed, outputfile, timestamp):
+        idx_channel = int(number_pressed) - 1 # -1 for Python indexing
+        if idx_channel != self.reference_channel:
+            self.reference_channel = idx_channel
+            if self.reference_channel == -1:
+                line = str(timestamp) + ', Switched online reference to None'
+            else:
+                line = str(timestamp) + ', Switched online reference to ' + str(number_pressed) + ' (' + self.channels[self.reference_channel] +')'
+            stimhistory = open(outputfile, 'a') # Appending
+            stimhistory.write(line + '\n')
+            stimhistory.close()
+            print(line)
+        else:
+            print('Online reference already set to ' + number_pressed + ' (' + self.channels[self.reference_channel] +')')

@@ -48,6 +48,7 @@ ELEC["TP10"]    = 3
 # ELEC["Aux2"]    = 5
 
 IDX_ELEC        = ELEC["AF7"]
+IDX_REF         = -1 # No online reference by default
 
 
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
