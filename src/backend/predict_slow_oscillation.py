@@ -138,12 +138,31 @@ class PredictSlowOscillation:
 
 
     def multiply_throw_time(self, onset_SO, sampling_rate, down_time):
-        # =================================================================
-        # This method considers a perfect sine wave and predicts the 
-        # upstate as 3 times the time it took the delta signal to go from 
-        # zero to downstate.
-        # =================================================================
-        samples_down_to_up      = self.throw_multi * onset_SO.size
+        """
+        This method considers a perfect sine wave and predicts the 
+        upstate as 3 times the time it took the delta signal to go from 
+        zero to downstate.
+
+        Args:
+            onset_SO (np.ndarray):
+                Delta signal from positive-to-negative zero-crossing onwards.
+                The minimum (trough) indicates the downstate location.
+            sampling_rate (float):
+                EEG sampling rate in Hz
+            down_time (float):
+                Timestamp in milliseconds when downstate trough was detected
+
+        Returns:
+            stim_time_stamp (float):
+                Predicted upstate timestamp in milliseconds (absolute time).
+                Calculated as: down_time + (throw_multi * time_to_trough)
+        """
+
+        # Over iterations, the size of onset_SO will increase by 1 sample, moving PAST the trough. 
+        # However, the upstate prediction should be based on the time from zero-crossing to trough,
+        # so we need to exclude the last sample in onset_SO for the time calculation.
+        samples_to_trough       = np.argmin(onset_SO) + 1
+        samples_down_to_up      = self.throw_multi * samples_to_trough
         time_down_to_up         = (samples_down_to_up / sampling_rate) * 1000
         stim_time_stamp         = down_time + time_down_to_up
 
