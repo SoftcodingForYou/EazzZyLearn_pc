@@ -218,7 +218,7 @@ class Receiver:
             sample = np.transpose(sample)
 
             # save to new buffer
-            self.buffer = np.concatenate((self.buffer[:, 1:], sample), axis=1)
+            self.buffer = np.concatenate((self.buffer[:, 1:], sample), axis=1) # TODO: Better would be implementing ciruclar buffers to prevent memory reallocation
 
             # Save time_stamp
             self.time_stamps[:-1] = self.time_stamps[1:]

@@ -17,17 +17,17 @@ repeated_so_prediction_tolerance_window = 100   # ms --> EZL keeps predicting up
                                                 # are in a slow wave's down phase. Therefore, we 
                                                 # have multiple writeouts with respect to the same 
                                                 # downstate. We remove those duplicates here.
-ezl_eeg_path = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\EazzZyLearn_output\2025_10_08_1534\sam_healthy_older_04\08-10-2025_15-34-45_sam_healthy_older_04_eeg.txt'
-ezl_pred_path = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\EazzZyLearn_output\2025_10_08_1534\sam_healthy_older_04\08-10-2025_15-34-45_sam_healthy_older_04_pred.txt'
-ezl_stim_path = r'D:\Interaxon\Codes\GitHub\EazzZyLearn_pc\EazzZyLearn_output\2025_10_08_1534\sam_healthy_older_04\08-10-2025_15-34-45_sam_healthy_older_04_stim.txt'
+ezl_eeg_path = r'[...]_eeg.txt'
+ezl_pred_path = r'[...]_pred.txt'
+ezl_stim_path = r'[...]_stim.txt'
 
 plot_raw_signal             = False
 plot_delta_signal           = False
-plot_stimulation_timeseries = True
-plot_detection_accuracy     = True
-plot_prediction_accuracy    = True
-plot_phase_polar            = True
-plot_grand_average_so       = True
+plot_stimulation_timeseries = False
+plot_detection_accuracy     = False
+plot_prediction_accuracy    = False
+plot_phase_polar            = False
+plot_grand_average_so       = False
 plot_grand_average_stim     = False
 plot_time_freq              = False
 
