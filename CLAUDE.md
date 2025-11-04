@@ -3,7 +3,15 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
-EazzZyLearn_pc V2025.06 is a real-time closed-loop neurofeedback system for sleep research that detects deep sleep and triggers memory reactivation cues. The system processes EEG data in real-time to detect slow oscillations during sleep and automatically plays audio cues to enhance memory consolidation. The system features both traditional spectral analysis and advanced Muse machine learning sleep classification.
+EazzZyLearn_pc V2025.11 is a real-time closed-loop neurofeedback system for sleep research that detects deep sleep and triggers memory reactivation cues. The system processes EEG data in real-time to detect slow oscillations during sleep and automatically plays audio cues to enhance memory consolidation.
+
+### Key Features
+- **Adaptive Learning**: Retrospective learning system that continuously improves upstate prediction accuracy by analyzing actual slow oscillation morphology
+- **Dual Sleep Classification**: Traditional spectral analysis and advanced Muse machine learning classifier
+- **Online Re-referencing**: Real-time channel re-referencing capability for improved signal quality without affecting stored data
+- **Interactive GUI**: PyQt5 interface with settings dialog, runtime controls, and real-time visualization
+- **Comprehensive Analysis**: Post-session report generation with 9 configurable analysis plots
+- **Flexible Architecture**: Modular design supporting multiple EEG devices (Muse, OpenBCI)
 
 ## Architecture
 
@@ -15,18 +23,21 @@ Muse EEG Device → OSC Streaming → Signal Processing → Sleep Classification
 ### Core Components
 - **Backend**: Master controller inheriting from Receiver, orchestrates all real-time processing
 - **Receiver**: OSC server for EEG data input, manages data buffering and threading
-- **SignalProcessing**: Filters and extracts frequency bands (delta, slow delta, etc.)
+- **SignalProcessing**: Filters and extracts frequency bands (delta, slow delta, etc.) with optional online re-referencing
 - **Sleep Classification**: Dual-mode sleep/wake staging system
-  - **SleepWakeState**: Traditional spectral power ratio classification 
+  - **SleepWakeState**: Traditional spectral power ratio classification
   - **MuseSleepClassification**: Advanced ML-based classification using musetools
-- **PredictSlowOscillation**: Detects downstates and predicts optimal stimulation timing
+- **PredictSlowOscillation**: Detects downstates and predicts optimal stimulation timing with adaptive learning
 - **Cueing**: Audio cue management and stimulation triggering
 - **HandleData**: File I/O, session management, and data persistence
+- **Frontend**: PyQt5 GUI with settings dialog, real-time controls, and channel/reference selection
 
-### Language Implementations
-- **PythonVersion/**: Primary implementation (production-ready)
-- **JavaVersion/**: Android port with equivalent architecture
-- **src/standalone_utils/**: Post-session analysis and reporting tools
+### Repository Structure
+- **src/backend/**: Core processing modules (backend.py, receiver.py, signal_processing.py, predict_slow_oscillation.py, cueing.py, handle_data.py, disk_io.py, sleep_wake_state.py)
+- **src/frontend/**: PyQt5 GUI (frontend.py, settings_dialog.py, pyqt_native_plot_widget.py)
+- **src/standalone_utils/**: Post-session analysis and debugging tools (post_session_report.py, muse_osc_simulator.py, test_osc_connection.py, debug_osc_messages.py)
+- **src/**: Main entry points (main_SLEEP.py, main_STUDY.py, main_DEVELOPERMODE.py, parameters.py)
+- **unmaintained/**: Archived code (JavaVersion/, SessionReport/)
 
 ## Development Commands
 
@@ -41,22 +52,26 @@ pip install -r requirements.txt
 ### Running the System
 ```bash
 # Main execution modes
-python PythonVersion/main_SLEEP.py      # Sleep study mode
-python PythonVersion/main_STUDY.py      # Research study mode  
-python PythonVersion/main_DEVELOPERMODE.py  # Development/testing
+python src/main_SLEEP.py      # Sleep study mode (production)
+python src/main_STUDY.py      # Research study mode
+python src/main_DEVELOPERMODE.py  # Development/testing with simulated data
 
-# Testing OSC connection
-python test_osc_connection.py           # Test EEG data reception
-python debug_osc_messages.py           # Debug OSC message reception
+# Testing and debugging
+python src/standalone_utils/test_osc_connection.py     # Test EEG data reception
+python src/standalone_utils/debug_osc_messages.py      # Debug OSC message reception
+python src/standalone_utils/muse_osc_simulator.py      # Offline processing simulator
 ```
 
 ### Configuration
-All parameters are configured in `PythonVersion/parameters.py`:
+All parameters are configured in `src/parameters.py`:
 - **Session-specific**: Subject info, output directories, electrode mapping
-- **Signal processing**: Buffer lengths, frequency bands, filter parameters  
+- **Signal processing**: Buffer lengths, frequency bands, filter parameters
+- **Online re-referencing**: `IDX_REF` (-1 for none, or channel index for reference subtraction)
 - **OSC streaming**: IP/port for EEG data reception (currently configured for Muse headband)
 - **Sleep staging**: Thresholds for wake/sleep classification, Muse classifier configuration
 - **Stimulation**: Refractory periods, cue selection, timing parameters
+- **Adaptive prediction**: `TROUGH_MULTIPLICATION` initial coefficient (updated during session)
+- **Debugging options**: Sound feedback loop, offline mode, signal plotting
 - **Muse Sleep Classifier**: Advanced ML configuration options
 
 ## Sleep Classification System
@@ -93,10 +108,12 @@ MUSE_METRIC_MAP = {                      # Sleep stage mappings
 ### Real-time Processing Loop
 The system runs a continuous real-time algorithm (`Backend.real_time_algorithm()`) triggered by incoming EEG samples:
 1. **Buffer Management**: Sliding window buffer updated with each sample
-2. **Signal Processing**: Real-time filtering and frequency band extraction
-3. **Sleep Staging**: Continuous sleep/wake state evaluation using selected method
-4. **Slow Oscillation Detection**: Downstate detection and upstate prediction
-5. **Cue Triggering**: Audio stimulation with refractory period management
+2. **Sound Feedback Mode Check**: Optional debugging mode with controlled stimulation timing
+3. **Signal Processing**: Real-time filtering and frequency band extraction with optional re-referencing
+4. **Sleep Staging**: Continuous sleep/wake state evaluation using selected method
+5. **Slow Oscillation Detection**: Downstate detection with validation
+6. **Adaptive Upstate Prediction**: Personalized timing prediction with retrospective learning
+7. **Cue Triggering**: Audio stimulation with refractory period management
 
 ### OSC Data Reception
 - Listens on configurable IP:port for `/eeg` messages at 256Hz
@@ -106,10 +123,12 @@ The system runs a continuous real-time algorithm (`Backend.real_time_algorithm()
 
 ### Interactive Control
 Real-time GUI controls during execution:
-- **Channel Selection**: Dynamic switching between electrodes (1-8)
+- **Channel Selection**: Dynamic switching between electrodes via dropdown (changes logged to stim file)
+- **Reference Selection**: Online re-referencing via dropdown (affects processing, not storage)
 - **Stimulation Control**: Enable/Pause/Force modes via GUI buttons
-- **Live Status**: Visual feedback of current sleep/wake state
-- **Safe Exit**: Q key for clean shutdown with data preservation
+- **Live Status**: Visual feedback of current sleep/wake state and processing speed
+- **Settings Dialog**: Pre-session configuration via File → Session Settings menu
+- **Safe Exit**: Window close or Q key for clean shutdown with data preservation
 
 ### Threading Architecture
 - **Main thread**: Real-time algorithm execution
@@ -120,19 +139,41 @@ Real-time GUI controls during execution:
 
 ### Signal Processing Pipeline
 - **Frequency Bands**: Delta (0.5-4Hz), Slow Delta (0.5-2Hz), Alpha (8-12Hz), Beta (12-40Hz), Gamma (25-45Hz)
-- **Filtering**: Butterworth filters (order 3) with notch filtering for line noise (49-51Hz)
+- **Filtering**: Butterworth filters (order 3) with dual notch filtering for line noise (50Hz and 60Hz)
+- **Online Re-referencing**: Optional reference subtraction (`v_raw = v_raw - v_ref`) applied before filtering
 - **Multi-buffer Architecture**:
   - Main buffer: 30s (7680 samples @ 256Hz)
   - Delta buffer: 5s for slow oscillation detection
   - Sleep buffer: 30s for sleep staging
   - Wake buffer: 3s for rapid wake detection
 
+### Adaptive Upstate Prediction Learning
+The system features a sophisticated retrospective learning algorithm that continuously improves prediction accuracy:
+
+- **Upstate Validation** (`PredictSlowOscillation.upstate_validation()`):
+  - Validates actual upstate peaks after detecting downstates
+  - Compares real vs predicted timing from downstate to upstate
+  - Updates adaptive `trough_multi` coefficient based on actual morphology
+
+- **Learning Mechanism**:
+  - Maintains rolling buffer of 100 `trough_multi` coefficients
+  - Averages last 3 coefficients for stability
+  - Automatically adapts to individual subject's slow oscillation patterns
+  - Predictions become progressively more accurate throughout session
+
+- **Validation Criteria** (7-point algorithm validation):
+  - High confidence criteria ensure updates only on clean slow oscillations
+  - Each upstate processed exactly once to prevent duplicate corrections
+  - Stores predicted samples for later comparison against actual timing
+
+- **Personalization**: System learns individual-specific slow oscillation morphology for optimal timing accuracy
+
 ## Data Output Format
 All outputs stored as comma-separated text files with consistent headers:
 - **`*_eeg.txt`**: Raw multi-channel EEG signals with timestamps (unfiltered, direct from hardware)
 - **`*_stage.txt`**: Sleep/wake staging decisions with method identification
 - **`*_pred.txt`**: Detected downstates and predicted upstates (empty in sound feedback mode)
-- **`*_stim.txt`**: Stimulation events, manual controls, and system state changes
+- **`*_stim.txt`**: Stimulation events, manual controls, channel/reference switching, and system state changes
 
 ### Data Storage Details
 - **EEG Storage**: `master_write_data()` saves raw, unfiltered EEG data BEFORE any signal processing
@@ -184,15 +225,26 @@ When using Muse classifier, stage files include:
 ## Development and Testing
 
 ### Offline Development
-- **Developer Mode**: Simulated EEG data for algorithm testing
-- **Debug Tools**: OSC message monitoring and connection validation
+- **Developer Mode** (`main_DEVELOPERMODE.py`): Simulated EEG data for algorithm testing
+- **OSC Simulator** (`muse_osc_simulator.py`): Comprehensive offline processing program (660 lines) for development
+- **Debug Tools**:
+  - `test_osc_connection.py`: Validates EEG data reception
+  - `debug_osc_messages.py`: Monitors incoming OSC messages
 - **Model Testing**: Isolated Muse classifier testing with synthetic data
+- **Settings Dialog**: Configure debugging options (offline mode, signal plotting, sound feedback loop)
+
+### Debugging Options (parameters.py)
+- **`SOUND_FEEDBACK_LOOP`**: Enable fixed-interval audio stimulation for testing sound-EEG feedback
+- **`ENABLE_SIGNAL_PLOT`**: Real-time signal visualization widget (experimental)
+- **`OFFLINE_MODE`**: Process pre-recorded data without OSC connection
+- **`IDX_REF`**: Test different re-referencing schemes during development
 
 ### Performance Validation
 - **Sleep Staging Accuracy**: Traditional method 85.88% validated on research datasets
 - **Muse Classifier**: Research-grade accuracy with real-time performance
 - **Timing Precision**: Sub-millisecond cue delivery accuracy
 - **System Latency**: Total processing latency <50ms for real-time applications
+- **Adaptive Learning**: Prediction accuracy improves progressively during sessions
 
 ## Post-Session Analysis
 
@@ -254,4 +306,30 @@ All plots saved to the same directory as input files:
 - **Delta (0.5-4 Hz)**: Standard slow oscillation analysis
 - **Slow Delta (0.5-2 Hz)**: For phase analysis and upstate prediction validation
 
-This system represents a state-of-the-art real-time neurofeedback platform specifically designed for sleep research and memory consolidation studies, featuring both traditional signal processing and cutting-edge machine learning approaches for optimal accuracy and reliability.
+## Key File Locations
+
+### Core Modules
+- **Adaptive prediction**: `src/backend/predict_slow_oscillation.py` (442 lines) - Downstate detection and upstate prediction with retrospective learning
+- **Signal processing**: `src/backend/signal_processing.py` (277 lines) - Filtering, band extraction, and online re-referencing
+- **Backend controller**: `src/backend/backend.py` (222 lines) - Main real-time processing orchestration
+- **Data reception**: `src/backend/receiver.py` (308 lines) - OSC server and buffer management
+- **Sleep staging**: `src/backend/sleep_wake_state.py` - Traditional spectral analysis classification
+- **Audio cueing**: `src/backend/cueing.py` - Stimulation triggering and playback
+- **File I/O**: `src/backend/handle_data.py` (313 lines) - Session management and data persistence
+- **Disk operations**: `src/backend/disk_io.py` (122 lines) - Threaded writing to prevent data loss
+
+### Frontend
+- **Main GUI**: `src/frontend/frontend.py` (415 lines) - PyQt5 interface with channel/reference controls
+- **Settings dialog**: `src/frontend/settings_dialog.py` (456 lines) - Pre-session configuration
+- **Plot widget**: `src/frontend/pyqt_native_plot_widget.py` (205 lines) - Real-time signal visualization
+
+### Analysis and Debugging Tools
+- **Post-session analysis**: `src/standalone_utils/post_session_report.py` (1044 lines) - Comprehensive offline analysis with 9 plot types
+- **OSC simulator**: `src/standalone_utils/muse_osc_simulator.py` (660 lines) - Offline processing for development
+- **Connection testing**: `src/standalone_utils/test_osc_connection.py` - EEG data reception validation
+- **OSC debugging**: `src/standalone_utils/debug_osc_messages.py` - Message monitoring
+
+### Configuration
+- **Parameters**: `src/parameters.py` - All system configuration (channels, thresholds, debugging options)
+
+This system represents a state-of-the-art real-time neurofeedback platform specifically designed for sleep research and memory consolidation studies, featuring both traditional signal processing and cutting-edge machine learning approaches for optimal accuracy and reliability. The system combines adaptive personalization with enhanced flexibility for diverse research applications.

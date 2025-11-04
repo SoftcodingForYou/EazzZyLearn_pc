@@ -242,10 +242,9 @@ class Frontend(QMainWindow):
     def show_about(self):
         """Show about dialog."""
         QMessageBox.about(self, 'About EazzZyLearn',
-                        'EazzZyLearn v2025.06\n\n'
+                        'EazzZyLearn v2025.11\n\n'
                         'Real-time closed-loop neurofeedback system\n'
-                        'for sleep research and memory consolidation.\n\n'
-                        'Powered by Muse EEG technology.')
+                        'for sleep research and memory consolidation.')
 
     def set_stylesheet(self):
         """Set the stylesheet for the buttons"""
