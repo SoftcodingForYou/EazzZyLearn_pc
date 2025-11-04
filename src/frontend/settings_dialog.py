@@ -73,7 +73,7 @@ class SettingsDialog(QDialog):
         debug_layout.setContentsMargins(10, 10, 10, 10)
 
         self.offline_checkbox = QCheckBox("Offline mode (simulated EEG stream)")
-        self.plot_checkbox = QCheckBox("Enable real-time signal plotting")
+        self.plot_checkbox = QCheckBox("Enable real-time signal plotting (experimental)")
         self.sound_feedback_checkbox = QCheckBox("Sound-EEG feedback loop")
 
         debug_layout.addWidget(self.offline_checkbox)
@@ -163,7 +163,7 @@ class SettingsDialog(QDialog):
         # Chosen cue
         audio_layout.addWidget(QLabel("Cue Sound:"), 0, 0)
         self.cue_combo = QComboBox()
-        self.cue_combo.addItems(["gong", "heart", "Beats_1Hz_1min"])
+        self.cue_combo.addItems(["gong", "heart", "Beats_1Hz_Single"])
         self.cue_combo.setEditable(True)
         audio_layout.addWidget(self.cue_combo, 0, 1)
         

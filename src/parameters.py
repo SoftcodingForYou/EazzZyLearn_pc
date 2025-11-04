@@ -48,6 +48,7 @@ ELEC["TP10"]    = 3
 # ELEC["Aux2"]    = 5
 
 IDX_ELEC        = ELEC["AF7"]
+IDX_REF         = -1 # No online reference by default
 
 
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -128,7 +129,7 @@ NON_PHYSIOLOGICAL_THRESHOLD = -300 # (uV) Below this amplitude, we do not
 
 # Parameters for upstate prediction
 # -------------------------------------------------------------------------
-THROW_MULTIPLICATION        = 1.25
+TROUGH_MULTIPLICATION        = 1.25
 
 
 # Timings of array handling

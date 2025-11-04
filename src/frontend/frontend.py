@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                            QPushButton, QComboBox, QLabel, QCheckBox,
-                            QMenuBar, QMenu, QAction, QMessageBox)
+                            QHBoxLayout, QPushButton, QComboBox, QLabel, 
+                            QCheckBox, QAction, QMessageBox, QGroupBox)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QMetaObject, Q_ARG
 from frontend.pyqt_native_plot_widget import NativePlotWidget
@@ -58,25 +58,65 @@ class Frontend(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
-        # Create channel selection dropdown
-        channel_label = QLabel("Current processing channel:")
+        # Create flip signal checkbox
+        flip_group = QGroupBox("Signal polarity")
+        flip_layout = QVBoxLayout()
+        flip_layout.setContentsMargins(10, 10, 10, 10)
+        self.flip_signal = p.FLIP_SIGNAL
+        self.flip_signal_checkbox = QCheckBox("Flip signal")
+        flip_layout.addWidget(self.flip_signal_checkbox)
+        flip_group.setLayout(flip_layout)
+        flip_group.setToolTip("This multiplies the incoming signal by -1 and will affect both online processing and offline stored signals.")
+
+        # Signal processing
+        processing_group = QGroupBox("Online processing")
+        processing_layout = QVBoxLayout()
+        # List channels for dropdown menus
         option_list = [f"{value+1}: {key}" for key, value in p.ELEC.items()]
+
+        #       Create channel selection dropdown
+        channel_label = QLabel("Real-time channel:")
         self.channel_combo = QComboBox()
         for i in range(0, p.NUM_CHANNELS):
             self.channel_combo.addItem(option_list[i])
 
-        # Create flip signal checkbox
-        self.flip_signal = p.FLIP_SIGNAL
-        self.flip_signal_checkbox = QCheckBox("Flip signal")
+        #       Create online reference selection dropdown
+        reference_label = QLabel("Online reference channel:")
+        self.online_ref_combo = QComboBox()
+        self.online_ref_combo.addItem("0: None")
+        for i in range(0, p.NUM_CHANNELS):
+            self.online_ref_combo.addItem(option_list[i])
 
-        # Initialize debugging settings from parameters
-        self.sound_feedback_enabled = p.SOUND_FEEDBACK_LOOP # Used in real_time_algorithm()
-        self.plot_enabled = p.ENABLE_SIGNAL_PLOT
+        processing_channel_group = QWidget()
+        processing_channel_layout = QHBoxLayout()
+        processing_channel_layout.addWidget(channel_label)
+        processing_channel_layout.addWidget(self.channel_combo)
+        processing_channel_group.setLayout(processing_channel_layout)
+        reference_channel_group = QWidget()
+        reference_channel_layout = QHBoxLayout()
+        reference_channel_layout.addWidget(reference_label)
+        reference_channel_layout.addWidget(self.online_ref_combo)
+        reference_channel_group.setLayout(reference_channel_layout)
+        processing_layout.addWidget(processing_channel_group)
+        processing_layout.addWidget(reference_channel_group)
+        processing_group.setLayout(processing_layout)
+        processing_group.setToolTip("Select channels for real-time downstate stimulation and for online re-referencing the real-time channel.\nThis is only affecting online processing and will not alter stored signals!")
 
-        # Create buttons
+        # Create stimulation state group
+        stimulation_group = QGroupBox("Stimulation state")
+        stimulation_layout = QHBoxLayout()
         self.start_button = QPushButton("Enable")
         self.force_button = QPushButton("Force")
         self.stop_button = QPushButton("Pause")
+        stimulation_layout.addWidget(self.start_button)
+        stimulation_layout.addWidget(self.force_button)
+        stimulation_layout.addWidget(self.stop_button)
+        stimulation_group.setLayout(stimulation_layout)
+        stimulation_group.setToolTip("Set stimulation state:\nEnable: Stimulation will be applied during detected downstates in adequate sleep stages.\nForce: Stimulation will be applied at every detected downstate, regardless of sleep stage.\nPause: No stimulation will be applied.")
+
+        # Initialize debugging settings from parameters
+        self.sound_feedback_loop_enabled = p.SOUND_FEEDBACK_LOOP # Used in real_time_algorithm()
+        self.plot_enabled = p.ENABLE_SIGNAL_PLOT
         
         # Create status label
         self.status_label = QLabel("Initializing ...")
@@ -113,12 +153,9 @@ class Frontend(QMainWindow):
             self.plot_widget = None
 
         # Add widgets to layout
-        layout.addWidget(channel_label)
-        layout.addWidget(self.channel_combo)
-        layout.addWidget(self.flip_signal_checkbox)
-        layout.addWidget(self.start_button)
-        layout.addWidget(self.force_button)
-        layout.addWidget(self.stop_button)
+        layout.addWidget(flip_group)
+        layout.addWidget(processing_group)
+        layout.addWidget(stimulation_group)
         layout.addWidget(self.status_label)
         layout.addWidget(self.speed_label)
         layout.addWidget(self.stage_label)
@@ -134,12 +171,18 @@ class Frontend(QMainWindow):
         self.flip_signal_checkbox.stateChanged.connect(self.flip_signal_changed)
         self.channel_combo.currentTextChanged.connect(self.channel_changed)
 
+        # Connect online reference selection
+        self.online_ref_combo.currentTextChanged.connect(self.online_reference_changed)
+
         self.window_closed = False
         self.processing_channel = p.IDX_ELEC
+        self.reference_channel = p.IDX_REF
         self.stimulation_state = 1 # 1 Started; 0 Paused, -1 Forced
 
         # Defaults
         self.channel_combo.setCurrentText(option_list[p.IDX_ELEC])
+        self.flip_signal_checkbox.setChecked(p.FLIP_SIGNAL)
+        self.online_ref_combo.setCurrentText(option_list[p.IDX_REF] if p.IDX_REF != -1 else "0: None")
         self.start_button.setProperty("active", True)
         self.force_button.setProperty("active", False)
         self.stop_button.setProperty("active", False)
@@ -199,10 +242,9 @@ class Frontend(QMainWindow):
     def show_about(self):
         """Show about dialog."""
         QMessageBox.about(self, 'About EazzZyLearn',
-                        'EazzZyLearn v2025.06\n\n'
+                        'EazzZyLearn v2025.11\n\n'
                         'Real-time closed-loop neurofeedback system\n'
-                        'for sleep research and memory consolidation.\n\n'
-                        'Powered by Muse EEG technology.')
+                        'for sleep research and memory consolidation.')
 
     def set_stylesheet(self):
         """Set the stylesheet for the buttons"""
@@ -303,6 +345,20 @@ class Frontend(QMainWindow):
     def channel_changed(self, value):
         value = str(value)
         self.processing_channel = int(value[:value.find(':')])
+
+        if hasattr(self, 'backend') and hasattr(self.backend, 'SgPrc') and hasattr(self.backend, 'HndlDt'):
+            # We take care of this here because the real time loop might not be running yet and we would miss channel switches
+            self.backend.SgPrc.switch_channel(
+                self.processing_channel, self.backend.HndlDt.stim_path, self.backend.current_time)
+            
+    def online_reference_changed(self, value):
+        value = str(value)
+        self.reference_channel = int(value[:value.find(':')])
+
+        if hasattr(self, 'backend') and hasattr(self.backend, 'SgPrc') and hasattr(self.backend, 'HndlDt'):
+            # We take care of this here because the real time loop might not be running yet and we would miss channel switches
+            self.backend.SgPrc.switch_online_reference_channel(
+                self.reference_channel, self.backend.HndlDt.stim_path, self.backend.current_time)
 
     def update_status_text(self, text):
         """Update the status label text"""

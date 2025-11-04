@@ -130,3 +130,6 @@ dmypy.json
 
 # Mac OS files
 .DS_store
+
+# EazzZyLearn-generated files
+**/EazzZyLearn_output/**
